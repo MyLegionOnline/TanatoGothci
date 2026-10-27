@@ -76,30 +76,38 @@ mod tests {
 
     #[test]
     fn rejects_empty_base_url() {
-        let mut s = Settings::default();
-        s.base_url = "   ".to_string();
+        let s = Settings {
+            base_url: "   ".to_string(),
+            ..Default::default()
+        };
         assert!(s.validate().is_err());
     }
 
     #[test]
     fn rejects_bad_scheme() {
-        let mut s = Settings::default();
-        s.base_url = "ftp://example.com".to_string();
+        let s = Settings {
+            base_url: "ftp://example.com".to_string(),
+            ..Default::default()
+        };
         assert!(s.validate().is_err());
     }
 
     #[test]
     fn rejects_empty_model() {
-        let mut s = Settings::default();
-        s.model = "".to_string();
+        let s = Settings {
+            model: "".to_string(),
+            ..Default::default()
+        };
         assert!(s.validate().is_err());
     }
 
     #[test]
     fn rejects_out_of_range_reasoning_level() {
-        let mut s = Settings::default();
-        s.reasoning_enabled = true;
-        s.reasoning_level = 9;
+        let s = Settings {
+            reasoning_enabled: true,
+            reasoning_level: 9,
+            ..Default::default()
+        };
         assert!(s.validate().is_err());
     }
 

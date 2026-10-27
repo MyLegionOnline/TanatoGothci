@@ -297,7 +297,7 @@ fn parse_sse_event(event: &str) -> Option<Result<StreamDelta, ApiError>> {
             }
         }
         if let Some(tool_calls) = choice.delta.tool_calls {
-            for tc in tool_calls {
+            if let Some(tc) = tool_calls.into_iter().next() {
                 return Some(Ok(StreamDelta::Tool(parse_tool_call(&tc))));
             }
         }
