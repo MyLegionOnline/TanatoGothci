@@ -33,8 +33,9 @@ custom-protocol = ["tauri/custom-protocol"]
 # (.exe) and a WiX MSI by default (bundle.targets = "all"); the NSIS
 # installer is the recommended distribution format.
 [target.'cfg(windows)'.dependencies]
-# (placeholder kept on purpose: adding Windows-only crates later must not
-#  break cross-platform builds of core/ or the macOS job)
+# Placeholder kept on purpose: adding Windows-only crates later must not
+# break cross-platform builds of core/ or the macOS job. (No Windows-only
+# crates are currently required — Tauri v2 handles packaging internally.)
 
 # macOS note: icons/icon.icns is already present and no Apple-only crates
 # are used, so `tauri build` on a macOS runner works without project changes.
