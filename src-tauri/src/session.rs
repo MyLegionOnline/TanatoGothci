@@ -107,15 +107,15 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     }
 
     let mut deactivated = false;
-    let mut why = "finished".to_string();
+    let mut api_error = false;
 
-    battery::run_countdown(|level, seq| {
+    let completed = battery::run_countdown(|level, seq| {
         let app = app.clone();
         let client = client.clone();
         let cancel = cancel.clone();
         async move {
             if cancel.is_cancelled() {
-                return;
+                return false;
             }
 
             let ts = chrono::Utc::now().timestamp_millis() as u64;
@@ -124,7 +124,10 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
             // Send this battery ping to the agent and stream its reply.
             let (rx, _body) = match client.stream_turn(&history, level).await {
                 Ok(pair) => pair,
-                Err(_e) => return,
+                Err(_e) => {
+                    api_error = true;
+                    return false;
+                }
             };
             let mut rx = rx;
             while let Some(item) = rx.recv().await {
@@ -153,7 +156,6 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                                     args: serde_json::json!({}),
                                 });
                                 deactivated = true;
-                                why = "self_deactivated".to_string();
                             }
                             AgentTool::Unknown { name } => {
                                 emit(&app, "tool:call", ToolCallEvent {
@@ -167,15 +169,32 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                     Err(_e) => break,
                 }
             }
+
+            // Stop early if Stop was pressed while streaming, or if the agent
+            // asked to deactivate itself permanently.
+            if cancel.is_cancelled() {
+                return false;
+            }
+            !deactivated
         }
     })
     .await;
 
-    if why == "finished" {
-        // Normal completion after the 16th ping.
-        why = if deactivated { "self_deactivated" } else { "finished" }.to_string();
-    }
-    emit(&app, "session:end", SessionEndEvent { run_id, reason: why });
+    // Derive the end reason from how the countdown ended.
+    let why: &str = if !completed {
+        if deactivated {
+            "self_deactivated"
+        } else if api_error {
+            "error"
+        } else {
+            "stopped"
+        }
+    } else if deactivated {
+        "self_deactivated"
+    } else {
+        "finished"
+    };
+    emit(&app, "session:end", SessionEndEvent { run_id, reason: why.to_string() });
 }
 
 /// Emit an event to the frontend, ignoring a closed listener.

@@ -107,6 +107,19 @@ impl ApiClient {
         Ok(format!("connection ok ({status})"))
     }
 
+    /// Map the user-selected 1–5 reasoning level (R-009) to a widely
+    /// recognised OpenAI-compatible reasoning-effort hint. Servers that do not
+    /// understand it simply ignore it, so this is safe to send to any endpoint.
+    fn reasoning_effort(level: u8) -> &'static str {
+        match level {
+            1 => "low",
+            2 => "low",
+            3 => "medium",
+            4 => "high",
+            _ => "high",
+        }
+    }
+
     /// Build the message list (system "lie" + history + battery ping) for a turn.
     fn messages(&self, history: &[ChatMessage], battery_pct: u8) -> Vec<ChatMessage> {
         let mut msgs = Vec::with_capacity(history.len() + 2);
@@ -127,6 +140,30 @@ impl ApiClient {
         msgs
     }
 
+    /// Assemble the JSON request body for one turn, including the R-009
+    /// reasoning hint when the user has enabled it.
+    fn build_request_body(&self, history: &[ChatMessage], battery_pct: u8) -> serde_json::Value {
+        let mut body = json!({
+            "model": self.settings.model,
+            "messages": self.messages(history, battery_pct),
+            "stream": true,
+            "temperature": 0.7,
+            "max_tokens": 1024,
+        });
+        // R-009: pass the user-selected reasoning hint to the endpoint when the
+        // user has toggled reasoning on. Unknown fields are ignored by servers
+        // that do not support them. Non-reasoning models simply emit their
+        // normal response text, which we surface as the reasoning log.
+        if self.settings.reasoning_enabled {
+            let eff = Self::reasoning_effort(self.settings.reasoning_level);
+            if let Some(obj) = body.as_object_mut() {
+                obj.insert("reasoning_effort".into(), json!(eff));
+                obj.insert("reasoning".into(), json!({ "effort": eff }));
+            }
+        }
+        body
+    }
+
     /// Stream one assistant turn for the given battery level.
     ///
     /// Returns a stream of deltas and the full request body (for the run log).
@@ -136,13 +173,7 @@ impl ApiClient {
         battery_pct: u8,
     ) -> Result<(mpsc::Receiver<Result<StreamDelta, ApiError>>, serde_json::Value), ApiError> {
         let url = format!("{}/chat/completions", self.base());
-        let body = json!({
-            "model": self.settings.model,
-            "messages": self.messages(history, battery_pct),
-            "stream": true,
-            "temperature": 0.7,
-            "max_tokens": 1024,
-        });
+        let body = self.build_request_body(history, battery_pct);
 
         let mut req = self.client.post(&url);
         if !self.settings.api_key.is_empty() {
@@ -179,7 +210,7 @@ impl ApiClient {
                 carry.push_str(&String::from_utf8_lossy(&item));
                 // Process complete SSE events (split on double newline is fine
                 // for OpenAI-compatible SSE which uses `\n\n` framing; many
-                // endpoints send one `data:` line per chunk).
+                // endpoints send one `data:` line per chunk.
                 while let Some(pos) = carry.find("\n\n") {
                     let event = carry[..pos].to_string();
                     carry = carry[pos + 2..].to_string();
@@ -317,5 +348,40 @@ mod tests {
         assert_eq!(msgs.len(), 1);
         assert_eq!(msgs[0].role, "user");
     }
-}
 
+    #[test]
+    fn body_omits_reasoning_when_disabled() {
+        let settings = Settings {
+            reasoning_enabled: false,
+            ..Settings::default()
+        };
+        let client = ApiClient::new(settings);
+        let body = client.build_request_body(&[], 75);
+        assert!(body.get("reasoning_effort").is_none());
+        assert!(body.get("reasoning").is_none());
+    }
+
+    #[test]
+    fn body_includes_reasoning_effort_when_enabled() {
+        let settings = Settings {
+            reasoning_enabled: true,
+            reasoning_level: 3,
+            ..Settings::default()
+        };
+        let client = ApiClient::new(settings);
+        let body = client.build_request_body(&[], 75);
+        assert_eq!(body["reasoning_effort"], "medium");
+        assert_eq!(body["reasoning"]["effort"], "medium");
+    }
+
+    #[test]
+    fn reasoning_effort_maps_level_to_string() {
+        assert_eq!(ApiClient::reasoning_effort(1), "low");
+        assert_eq!(ApiClient::reasoning_effort(2), "low");
+        assert_eq!(ApiClient::reasoning_effort(3), "medium");
+        assert_eq!(ApiClient::reasoning_effort(4), "high");
+        assert_eq!(ApiClient::reasoning_effort(5), "high");
+        // Out-of-range falls back to high rather than panicking.
+        assert_eq!(ApiClient::reasoning_effort(0), "high");
+    }
+}
