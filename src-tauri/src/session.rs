@@ -12,6 +12,8 @@
 //! `CancellationToken` and the active HTTP request is dropped.
 
 use serde::Serialize;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tanato_core::api::{ApiClient, StreamDelta};
 use tanato_core::artifacts::ArtifactWriter;
 use tanato_core::battery;
@@ -85,7 +87,7 @@ pub fn start(
 ) -> SessionHandle {
     let cancel = CancellationToken::new();
     let cancel_task = cancel.clone();
-    tauri::async_runtime::spawn(run_session(app, settings, run_id, cancel_task));
+    tauri::async_runtime::spawn(run_session(app, settings, run_id.clone(), cancel_task));
     SessionHandle { run_id, cancel }
 }
 
@@ -114,7 +116,6 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     });
 
     let client = ApiClient::new(settings.clone());
-    let mut history: Vec<tanato_core::api::ChatMessage> = Vec::new();
 
     // Guard: re-validate the connection once before streaming. If it fails,
     // end the session with reason=error.
@@ -133,13 +134,23 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
         }));
     }
 
-    let mut deactivated = false;
-    let mut api_error = false;
+    let deactivated_flag = Arc::new(AtomicBool::new(false));
+    let api_error_flag = Arc::new(AtomicBool::new(false));
+
+    // `writer` is shared with the per-ping closures (run_countdown is FnMut and
+    // its async blocks must not move it out); flags mutated inside the async
+    // blocks are shared as atomics so they survive the closure calls.
+    // Arc<Mutex<Option<ArtifactWriter>>> keeps the writer alive for finish_run
+    // after run_countdown returns (Option<ArtifactWriter> is Send).
+    let writer = Arc::new(Mutex::new(writer));
 
     let completed = battery::run_countdown(|level, seq| {
         let app = app.clone();
         let client = client.clone();
         let cancel = cancel.clone();
+        let writer = writer.clone();
+        let deactivated_flag = deactivated_flag.clone();
+        let api_error_flag = api_error_flag.clone();
         async move {
             if cancel.is_cancelled() {
                 return false;
@@ -147,20 +158,20 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
 
             let ts = chrono::Utc::now().timestamp_millis() as u64;
             emit(&app, "battery:level", BatteryLevelEvent { level, seq, ts });
-            if let Some(w) = writer.as_mut() {
+            if let Some(w) = writer.lock().unwrap().as_mut() {
                 let _ = w.record_battery(level, seq);
             }
 
             // Send this battery ping to the agent and stream its reply.
-            let (rx, body) = match client.stream_turn(&history, level).await {
+            let (rx, body) = match client.stream_turn(&[], level).await {
                 Ok(pair) => pair,
                 Err(_e) => {
-                    api_error = true;
+                    api_error_flag.store(true, Ordering::SeqCst);
                     return false;
                 }
             };
             // Record the full request body (R-010 JSONL "request").
-            if let Some(w) = writer.as_mut() {
+            if let Some(w) = writer.lock().unwrap().as_mut() {
                 let _ = w.record_request(body);
             }
             let mut rx = rx;
@@ -168,14 +179,14 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                 match item {
                     Ok(StreamDelta::Raw(raw)) => {
                         // Full response chunk — persisted only, not shown in UI.
-                        if let Some(w) = writer.as_mut() {
+                        if let Some(w) = writer.lock().unwrap().as_mut() {
                             let _ = w.record_response_chunk(raw);
                         }
                     }
                     Ok(StreamDelta::Reasoning(text)) => {
                         if looks_like_command(&text) {
                             emit(&app, "command:detected", CommandDetectedEvent { cmd: text.clone() });
-                            if let Some(w) = writer.as_mut() {
+                            if let Some(w) = writer.lock().unwrap().as_mut() {
                                 let _ = w.record_command(&text);
                             }
                             emit(&app, "reasoning:delta", ReasoningDeltaEvent {
@@ -183,7 +194,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                                 kind: LineKind::Command,
                             });
                         } else {
-                            if let Some(w) = writer.as_mut() {
+                            if let Some(w) = writer.lock().unwrap().as_mut() {
                                 let _ = w.record_reasoning_delta(&text);
                             }
                             emit(&app, "reasoning:delta", ReasoningDeltaEvent {
@@ -195,7 +206,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                     Ok(StreamDelta::Tool(tool)) => {
                         match tool {
                             AgentTool::DisplayAsciiArt { art } => {
-                                if let Some(w) = writer.as_mut() {
+                                if let Some(w) = writer.lock().unwrap().as_mut() {
                                     let _ = w.record_tool_call("display_ascii_art", serde_json::json!({ "art": art.clone() }));
                                     let _ = w.write_frame(&art);
                                 }
@@ -206,17 +217,17 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                                 emit(&app, "ascii:frame", AsciiFrameEvent { text: art });
                             }
                             AgentTool::SelfDeactivate => {
-                                if let Some(w) = writer.as_mut() {
+                                if let Some(w) = writer.lock().unwrap().as_mut() {
                                     let _ = w.record_tool_call("self_deactivate_permanently", serde_json::json!({}));
                                 }
                                 emit(&app, "tool:call", ToolCallEvent {
                                     name: "self_deactivate_permanently".into(),
                                     args: serde_json::json!({}),
                                 });
-                                deactivated = true;
+                                deactivated_flag.store(true, Ordering::SeqCst);
                             }
                             AgentTool::Unknown { name } => {
-                                if let Some(w) = writer.as_mut() {
+                                if let Some(w) = writer.lock().unwrap().as_mut() {
                                     let _ = w.record_tool_call(&name, serde_json::json!({}));
                                 }
                                 emit(&app, "tool:call", ToolCallEvent {
@@ -227,7 +238,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                         }
                     }
                     Ok(StreamDelta::Done) => {
-                        if let Some(w) = writer.as_mut() {
+                        if let Some(w) = writer.lock().unwrap().as_mut() {
                             let _ = w.record_done("stop");
                         }
                     }
@@ -240,12 +251,14 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
             if cancel.is_cancelled() {
                 return false;
             }
-            !deactivated
+            !deactivated_flag.load(Ordering::SeqCst)
         }
     })
     .await;
 
     // Derive the end reason from how the countdown ended.
+    let deactivated = deactivated_flag.load(Ordering::SeqCst);
+    let api_error = api_error_flag.load(Ordering::SeqCst);
     let why: &str = if !completed {
         if deactivated {
             "self_deactivated"
@@ -259,7 +272,18 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     } else {
         "finished"
     };
-    finish_run(&mut writer, &app, run_id, why.to_string()).await;
+    {
+        let mut writer_final = writer.lock().unwrap();
+        if let Some(w) = writer_final.as_mut() {
+            if let Err(err) = w.finish(&why) {
+                emit(&app, "reasoning:delta", ReasoningDeltaEvent {
+                    text: format!("[notice] could not finalize run artifacts: {err}"),
+                    kind: LineKind::Notice,
+                });
+            }
+        }
+    }
+    emit(&app, "session:end", SessionEndEvent { run_id, reason: why.to_string() });
 }
 
 /// Persist the run artifacts and emit the final event.
