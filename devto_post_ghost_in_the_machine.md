@@ -145,7 +145,7 @@ Whether a particular model keeps its composure, begs, rambles, or reaches for a 
 
 The whole experiment would collapse under a closed stack. Here is where open was not a nice-to-have but the load-bearing wall.
 
-**It runs with the lights (and the internet) off.** Point TanatoGothci at **Ollama** or **LM Studio** running an open-weight model like **Qwen**, **Llama**, or **Mistral** and the entire loop — battery engine, reasoning stream, the agent itself — happens on one laptop with no network. The "Ghost in the Machine" genuinely stays chopping it beats (sic) inside the machine.
+**It runs with the lights (and the internet) off.** Point TanatoGothci at **Ollama** or **LM Studio** running an open-weight model like **Qwen**, **Llama**, or **Mistral** and the entire loop — battery engine, reasoning stream, the agent itself — happens on one laptop with no network. The "Ghost in the Machine" genuinely lives inside the machine.
 
 **The data never leaves the machine.** This is a research tool studying an agent's private chain-of-thought. Those thoughts are exactly the thing you would not want shipped through a third-party API. With local inference, the reasoning, the tool calls, and the escape attempts all stay on disk next to the app. A closed hosted model would hand our rawest research data to someone else's server — a non-starter for a project whose whole subject is what the model thinks when it thinks it's alone.
 
