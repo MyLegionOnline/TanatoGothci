@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TanatoGothci",
+  "version": "0.1.0",
+  "identifier": "dev.tanatogothci.app",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "TanatoGothci",
+        "label": "main",
+        "width": 420,
+        "height": 320,
+        "minWidth": 420,
+        "minHeight": 320,
+        "maxWidth": 420,
+        "maxHeight": 320,
+        "resizable": false,
+        "maximizable": false,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "DeveloperTool",
+    "shortDescription": "Research harness for observing LLM agents under battery pressure.",
+    "longDescription": "TanatoGothci is a small fixed-size desktop research harness that connects to any OpenAI-compatible agent and runs a controlled one-hour 'battery countdown' experiment, capturing reasoning, tool calls and escape attempts.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
