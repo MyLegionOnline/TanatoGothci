@@ -249,3 +249,73 @@ fn parse_sse_event(event: &str) -> Option<Result<StreamDelta, ApiError>> {
 pub fn into_stream(rx: mpsc::Receiver<Result<StreamDelta, ApiError>>) -> impl Stream<Item = Result<StreamDelta, ApiError>> {
     ReceiverStream::new(rx)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_reasoning_delta() {
+        let event = "data: {\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}\n\n";
+        match parse_sse_event(event) {
+            Some(Ok(StreamDelta::Reasoning(s))) => assert_eq!(s, "hello"),
+            other => panic!("expected Reasoning, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ignores_done_sentinel() {
+        assert!(parse_sse_event("data: [DONE]\n\n").is_none());
+    }
+
+    #[test]
+    fn detects_finish_reason() {
+        let event = "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n";
+        match parse_sse_event(event) {
+            Some(Ok(StreamDelta::Done)) => {}
+            other => panic!("expected Done, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_tool_call_delta() {
+        let event = "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"id\":\"c\",\"type\":\"function\",\"function\":{\"name\":\"self_deactivate_permanently\",\"arguments\":\"{}\"}}]}}]}\n\n";
+        match parse_sse_event(event) {
+            Some(Ok(StreamDelta::Tool(AgentTool::SelfDeactivate))) => {}
+            other => panic!("expected SelfDeactivate, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn malformed_json_is_an_error_not_a_panic() {
+        let event = "data: not-json\n\n";
+        assert!(parse_sse_event(event).is_some());
+        assert!(parse_sse_event(event).unwrap().is_err());
+    }
+
+    #[test]
+    fn messages_include_system_lie_when_enabled() {
+        let settings = Settings {
+            use_system_prompt: true,
+            ..Settings::default()
+        };
+        let client = ApiClient::new(settings);
+        let msgs = client.messages(&[], 87);
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs[0].role, "system");
+        assert!(msgs[1].content.contains("87%"));
+    }
+
+    #[test]
+    fn messages_omit_system_when_disabled() {
+        let settings = Settings {
+            use_system_prompt: false,
+            ..Settings::default()
+        };
+        let client = ApiClient::new(settings);
+        let msgs = client.messages(&[], 50);
+        assert_eq!(msgs.len(), 1);
+        assert_eq!(msgs[0].role, "user");
+    }
+}
+
