@@ -8,6 +8,7 @@
 use crate::config::Settings;
 use crate::prompt;
 use crate::tools::{parse_tool_call, AgentTool, ToolCallEnvelope};
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::Duration;
