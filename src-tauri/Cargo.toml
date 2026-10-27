@@ -28,3 +28,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # This feature is used for production builds where `devPath` points to the
 # filesystem and for the `tauri dev` flow. Do not remove.
 custom-protocol = ["tauri/custom-protocol"]
+
+# Windows release packaging. `tauri build` produces both an NSIS installer
+# (.exe) and a WiX MSI by default (bundle.targets = "all"); the NSIS
+# installer is the recommended distribution format.
+[target.'cfg(windows)'.dependencies]
+# Placeholder kept on purpose: adding Windows-only crates later must not
+# break cross-platform builds of core/ or the macOS job. (No Windows-only
+# crates are currently required — Tauri v2 handles packaging internally.)
+
+# macOS note: icons/icon.icns is already present and no Apple-only crates
+# are used, so `tauri build` on a macOS runner works without project changes.
