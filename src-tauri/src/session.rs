@@ -272,8 +272,16 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     } else {
         "finished"
     };
-    let mut writer_final = writer.lock().unwrap();
-    finish_run(&mut writer_final, &app, run_id, why.to_string()).await;
+    {
+        let mut writer_final = writer.lock().unwrap();
+        if let Err(err) = writer_final.as_mut().unwrap().finish(&why) {
+            emit(&app, "reasoning:delta", ReasoningDeltaEvent {
+                text: format!("[notice] could not finalize run artifacts: {err}"),
+                kind: LineKind::Notice,
+            });
+        }
+    }
+    emit(&app, "session:end", SessionEndEvent { run_id, reason: why.to_string() });
 }
 
 /// Persist the run artifacts and emit the final event.
