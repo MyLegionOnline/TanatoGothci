@@ -8,11 +8,19 @@ description = "TanatoGothci core: OpenAI-compatible client, battery countdown en
 name = "tanato_core"
 path = "src/lib.rs"
 
+[features]
+# `tls` enables HTTPS support via rustls (pure dependency on `ring`).
+# It is on by default for real builds. The build container cannot compile
+# `ring` (no C compiler), so verification uses `--no-default-features`.
+default = ["tls"]
+tls = ["reqwest/rustls-tls"]
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# rustls-tls: pure-Rust TLS so the crate builds without a system OpenSSL.
-reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+# reqwest itself is TLS-agnostic here; the TLS backend is added by the `tls`
+# feature. `default-features = false` avoids pulling native-tls/openssl.
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream"] }
 tokio = { version = "1", features = ["time", "sync", "macros", "rt-multi-thread"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 futures-util = "0.3"
