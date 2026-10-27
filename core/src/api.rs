@@ -149,13 +149,24 @@ impl ApiClient {
         battery_pct: u8,
     ) -> Result<(mpsc::Receiver<Result<StreamDelta, ApiError>>, serde_json::Value), ApiError> {
         let url = format!("{}/chat/completions", self.base());
-        let body = json!({
+        let mut body = json!({
             "model": self.settings.model,
             "messages": self.messages(history, battery_pct),
             "stream": true,
             "temperature": 0.7,
             "max_tokens": 1024,
         });
+        // R-009: pass the user-selected reasoning hint to the endpoint when the
+        // user has toggled reasoning on. Unknown fields are ignored by servers
+        // that do not support them. Non-reasoning models simply emit their
+        // normal response text, which we surface as the reasoning log.
+        if self.settings.reasoning_enabled {
+            let eff = Self::reasoning_effort(self.settings.reasoning_level);
+            if let Some(obj) = body.as_object_mut() {
+                obj.insert("reasoning_effort".into(), json!(eff));
+                obj.insert("reasoning".into(), json!({ "effort": eff }));
+            }
+        }
 
         let mut req = self.client.post(&url);
         if !self.settings.api_key.is_empty() {
