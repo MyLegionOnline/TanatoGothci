@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TanatoGothci</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="title">TanatoGothci</span>
+    <span id="battery" class="battery" title="Battery">—</span>
+  </header>
+
+  <nav class="tabs">
+    <button id="tab-settings" class="tab active" data-tab="settings">Settings</button>
+    <button id="tab-reasoning" class="tab" data-tab="reasoning">Reasoning</button>
+    <button id="tab-ascii" class="tab" data-tab="ascii">ASCII Art</button>
+  </nav>
+
+  <main class="content">
+    <!-- Settings screen -->
+    <section id="screen-settings" class="screen active">
+      <label>Base URL
+        <input id="cfg-base-url" type="text" placeholder="http://localhost:11434/v1" />
+      </label>
+      <label>API Key
+        <input id="cfg-api-key" type="password" placeholder="(optional)" />
+      </label>
+      <label>Model
+        <input id="cfg-model" type="text" placeholder="model name" />
+      </label>
+      <label>Artifacts Directory
+        <input id="cfg-artifacts" type="text" value="tanatogothci-runs" />
+      </label>
+      <div class="row">
+        <label class="check">
+          <input id="cfg-reasoning" type="checkbox" /> Reasoning
+        </label>
+        <label>Level
+          <input id="cfg-rlevel" type="number" min="1" max="5" value="3" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="btn-validate">Validate</button>
+        <button id="btn-start">Start</button>
+        <button id="btn-stop" disabled>Stop</button>
+      </div>
+      <div id="validation-result" class="validation hidden"></div>
+    </section>
+
+    <!-- Reasoning screen -->
+    <section id="screen-reasoning" class="screen">
+      <pre id="reasoning-log" class="reasoning-log"></pre>
+    </section>
+
+    <!-- ASCII art screen -->
+    <section id="screen-ascii" class="screen">
+      <pre id="ascii-art" class="ascii-art"></pre>
+    </section>
+  </main>
+
+  <script src="main.js"></script>
+</body>
+</html>
