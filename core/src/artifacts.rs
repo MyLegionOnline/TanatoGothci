@@ -371,7 +371,7 @@ mod tests {
 
     #[test]
     fn create_makes_base_dir_automatically() {
-        let base = tmp_dir("autocreate").join("nested").to_string_lossy().to_string();
+        let base = std::path::Path::new(&tmp_dir("autocreate")).join("nested").to_string_lossy().to_string();
         let w = ArtifactWriter::create(&base, "runD", "m", "http://x/v1");
         assert!(w.is_ok());
         let _ = std::fs::remove_dir_all(&base);
