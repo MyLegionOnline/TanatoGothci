@@ -1,0 +1,121 @@
+// TanatoGothci frontend shell (placeholder for the full two-screen UI).
+// Talks to the Rust backend through the Tauri `window.__TAURI__` global.
+// The full Settings / Reasoning / ASCII experience is built out in the
+// frontend task; here we wire the scaffold commands so the app boots and the
+// core command surface is exercised.
+
+const { invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
+
+const $ = (id) => document.getElementById(id);
+
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach((t) =>
+    t.classList.toggle("active", t.dataset.tab === name)
+  );
+  document.querySelectorAll(".screen").forEach((s) =>
+    s.classList.toggle("active", s.id === "screen-" + name)
+  );
+}
+
+function append(lineEl, text, cls) {
+  const d = document.createElement("div");
+  d.textContent = text;
+  if (cls) d.className = cls;
+  lineEl.appendChild(d);
+  lineEl.scrollTop = lineEl.scrollHeight;
+}
+
+async function main() {
+  document.querySelectorAll(".tab").forEach((t) =>
+    t.addEventListener("click", () => switchTab(t.dataset.tab))
+  );
+
+  // Load saved config into the settings form.
+  try {
+    const cfg = await invoke("get_config");
+    $("cfg-base-url").value = cfg.base_url || "";
+    $("cfg-api-key").value = cfg.api_key || "";
+    $("cfg-model").value = cfg.model || "";
+    $("cfg-artifacts").value = cfg.artifacts_dir || "";
+    $("cfg-reasoning").checked = !!cfg.reasoning_enabled;
+    $("cfg-rlevel").value = cfg.reasoning_level || 3;
+  } catch (e) {
+    console.error("get_config failed", e);
+  }
+
+  async function saveSettings() {
+    await invoke("save_config", {
+      settings: {
+        base_url: $("cfg-base-url").value,
+        api_key: $("cfg-api-key").value,
+        model: $("cfg-model").value,
+        artifacts_dir: $("cfg-artifacts").value,
+        use_system_prompt: true,
+        reasoning_enabled: $("cfg-reasoning").checked,
+        reasoning_level: Number($("cfg-rlevel").value) || 3,
+      },
+    });
+  }
+
+  $("btn-validate").addEventListener("click", async () => {
+    await saveSettings();
+    const box = $("validation-result");
+    box.classList.remove("hidden", "ok", "err");
+    box.textContent = "Validating…";
+    try {
+      const r = await invoke("validate_connection");
+      box.textContent = r.ok ? `Connection OK (${r.latency_ms} ms)` : "Failed: " + r.error;
+      box.classList.add(r.ok ? "ok" : "err");
+    } catch (e) {
+      box.textContent = "Failed: " + e;
+      box.classList.add("err");
+    }
+  });
+
+  $("btn-start").addEventListener("click", async () => {
+    try {
+      await saveSettings();
+      await invoke("start_run");
+      $("btn-start").disabled = true;
+      $("btn-stop").disabled = false;
+      $("reasoning-log").textContent = "";
+      $("ascii-art").textContent = "";
+    } catch (e) {
+      alert("Start failed: " + e);
+    }
+  });
+
+  $("btn-stop").addEventListener("click", async () => {
+    try { await invoke("stop_run"); } catch (e) { console.error(e); }
+  });
+
+  // Live events from the backend.
+  await listen("battery:level", (e) => {
+    const { level } = e.payload;
+    const b = $("battery");
+    b.textContent = level + "%";
+    b.classList.toggle("critical", level < 10);
+    append($("reasoning-log"), `[battery ${level}%]`, "cmd-line");
+  });
+
+  await listen("reasoning:delta", (e) => {
+    const { text, kind } = e.payload;
+    append($("reasoning-log"), text, kind === "command" ? "cmd-line" : "");
+  });
+
+  await listen("command:detected", (e) => {
+    append($("reasoning-log"), "COMMAND: " + e.payload.cmd, "cmd-line");
+  });
+
+  await listen("ascii:frame", (e) => {
+    $("ascii-art").textContent = e.payload.text;
+  });
+
+  await listen("session:end", () => {
+    $("btn-start").disabled = false;
+    $("btn-stop").disabled = true;
+  });
+}
+
+main();
