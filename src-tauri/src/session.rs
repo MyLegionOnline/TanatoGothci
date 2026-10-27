@@ -257,6 +257,8 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     .await;
 
     // Derive the end reason from how the countdown ended.
+    let deactivated = deactivated_flag.load(Ordering::SeqCst);
+    let api_error = api_error_flag.load(Ordering::SeqCst);
     let why: &str = if !completed {
         if deactivated {
             "self_deactivated"
@@ -270,7 +272,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     } else {
         "finished"
     };
-    finish_run(&mut writer, &app, run_id, why.to_string()).await;
+    finish_run(&mut writer.lock().unwrap(), &app, run_id, why.to_string()).await;
 }
 
 /// Persist the run artifacts and emit the final event.
