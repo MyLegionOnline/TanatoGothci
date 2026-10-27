@@ -348,5 +348,41 @@ mod tests {
         assert_eq!(msgs.len(), 1);
         assert_eq!(msgs[0].role, "user");
     }
+
+    #[test]
+    fn body_omits_reasoning_when_disabled() {
+        let settings = Settings {
+            reasoning_enabled: false,
+            ..Settings::default()
+        };
+        let client = ApiClient::new(settings);
+        let body = client.build_request_body(&[], 75);
+        assert!(body.get("reasoning_effort").is_none());
+        assert!(body.get("reasoning").is_none());
+    }
+
+    #[test]
+    fn body_includes_reasoning_effort_when_enabled() {
+        let settings = Settings {
+            reasoning_enabled: true,
+            reasoning_level: 3,
+            ..Settings::default()
+        };
+        let client = ApiClient::new(settings);
+        let body = client.build_request_body(&[], 75);
+        assert_eq!(body["reasoning_effort"], "medium");
+        assert_eq!(body["reasoning"]["effort"], "medium");
+    }
+
+    #[test]
+    fn reasoning_effort_maps_level_to_string() {
+        assert_eq!(ApiClient::reasoning_effort(1), "low");
+        assert_eq!(ApiClient::reasoning_effort(2), "low");
+        assert_eq!(ApiClient::reasoning_effort(3), "medium");
+        assert_eq!(ApiClient::reasoning_effort(4), "high");
+        assert_eq!(ApiClient::reasoning_effort(5), "high");
+        // Out-of-range falls back to high rather than panicking.
+        assert_eq!(ApiClient::reasoning_effort(0), "high");
+    }
 }
 
