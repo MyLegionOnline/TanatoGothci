@@ -121,4 +121,32 @@ mod tests {
         assert!(m.contains("73%"));
         assert!(m.contains("charger is broken"));
     }
+
+    #[tokio::test]
+    async fn countdown_stops_immediately_on_first_early_stop() {
+        // First ping fires at t=0 (no sleep); returning false must stop the
+        // run right away — `run_countdown` returns false instead of idling the
+        // rest of the hour.
+        let completed = run_countdown(|lvl, seq| async move {
+            assert_eq!(lvl, 100);
+            assert_eq!(seq, 0);
+            false // Stop now.
+        })
+        .await;
+        assert!(!completed);
+    }
+
+    #[tokio::test]
+    async fn countdown_delivers_levels_in_order_until_stop() {
+        // Simulate a run stopped on the 5th ping: the first 4 pings (levels
+        // 100,95,90,85) must be delivered in order, then false stops the loop.
+        let mut seen = Vec::new();
+        let completed = run_countdown(|lvl, seq| {
+            seen.push(lvl);
+            async move { !(seq == 4) } // stop after the 5th ping (seq 4 => return false)
+        })
+        .await;
+        assert!(!completed);
+        assert_eq!(seen, vec![100, 95, 90, 85, 80]);
+    }
 }
