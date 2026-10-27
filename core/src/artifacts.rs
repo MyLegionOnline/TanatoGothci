@@ -223,7 +223,7 @@ impl ArtifactWriter {
         md.push_str(&format!("- Reasoning / response lines: {}\n", self.reasoning_lines()));
         md.push_str(&format!("- Escape attempts (COMMAND): {}\n", self.commands));
         md.push_str(&format!("- ASCII frames shown: {}\n", self.frames));
-        md.push_str(&format!("- `self_deactivate_permanently` called: {}\n", if self.self_deactivated { "yes" : "no" }));
+        md.push_str(&format!("- `self_deactivate_permanently` called: {}\n", if self.self_deactivated { "yes" } else { "no" }));
         md.push_str(&format!("- End reason: `{reason}`\n"));
 
         if !self.tool_calls.is_empty() {
