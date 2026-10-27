@@ -3,6 +3,9 @@
 **/target/
 Cargo.lock.orig
 
+# Room-local toolchain / build artifacts
+.toolchain/
+
 # Node / Tauri CLI
 node_modules/
 package-lock.json
