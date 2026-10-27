@@ -107,6 +107,19 @@ impl ApiClient {
         Ok(format!("connection ok ({status})"))
     }
 
+    /// Map the user-selected 1–5 reasoning level (R-009) to a widely
+    /// recognised OpenAI-compatible reasoning-effort hint. Servers that do not
+    /// understand it simply ignore it, so this is safe to send to any endpoint.
+    fn reasoning_effort(level: u8) -> &'static str {
+        match level {
+            1 => "low",
+            2 => "low",
+            3 => "medium",
+            4 => "high",
+            _ => "high",
+        }
+    }
+
     /// Build the message list (system "lie" + history + battery ping) for a turn.
     fn messages(&self, history: &[ChatMessage], battery_pct: u8) -> Vec<ChatMessage> {
         let mut msgs = Vec::with_capacity(history.len() + 2);
