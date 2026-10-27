@@ -8,42 +8,33 @@
 use crate::config::Settings;
 use crate::prompt;
 use crate::tools::{parse_tool_call, AgentTool, ToolCallEnvelope};
-use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::Duration;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::Stream;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
     #[error("request failed: {0}")]
     Http(#[from] reqwest::Error),
-    #[error("invalid stream: {0}")]
+    #[error("endpoint error: {0}")]
     Stream(String),
 }
 
 /// A single delta produced by the streaming response, lifted into the
-/// domain-independent event we stream to the frontend.
+/// domain-independent events we stream to the frontend.
 #[derive(Debug, Clone)]
 pub enum StreamDelta {
-    /// A text fragment from a normal (non-reasoning) model, shown as the
-    /// "reasoning log".
+    /// A text fragment from the model — either reasoning content (deep-thinking
+    /// models) or the normal response text of a non-reasoning model. Both are
+    /// shown as the "reasoning log" (R-009).
     Reasoning(String),
     /// A tool call the agent wants to perform.
     Tool(AgentTool),
     /// End of the assistant turn.
     Done,
-}
-
-/// The OpenAI-compatible chat-completions request we build for a run turn.
-#[derive(Debug, Clone, Serialize)]
-pub struct ChatRequest {
-    pub model: String,
-    pub messages: Vec<ChatMessage>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tools: Option<Vec<serde_json::Value>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<f32>,
-    pub stream: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -72,7 +63,7 @@ struct ChatDelta {
     tool_calls: Option<Vec<ToolCallEnvelope>>,
 }
 
-/// Handle to the configured client plus a reference to the settings.
+/// Handle to the configured client.
 #[derive(Clone)]
 pub struct ApiClient {
     client: reqwest::Client,
@@ -87,15 +78,13 @@ impl ApiClient {
         }
     }
 
-    /// Returns the base URL with a trailing slash trimmed, used to build the
-    /// `/chat/completions` path.
     fn base(&self) -> String {
         self.settings.base_url.trim_end_matches('/').to_string()
     }
 
-    /// Connection validation: send a minimally-invasive request (an empty
-    /// chat completion) and require a 2xx. Confirms the endpoint acts like an
-    /// OpenAI-compatible server before a run is allowed to start.
+    /// Connection validation: send a minimally-invasive request and require a
+    /// 2xx, confirming the endpoint acts like an OpenAI-compatible server
+    /// before a run is allowed to start (R-004 / R-008).
     pub async fn validate(&self) -> Result<String, String> {
         let url = format!("{}/chat/completions", self.base());
         let body = json!({
@@ -108,10 +97,7 @@ impl ApiClient {
         if !self.settings.api_key.is_empty() {
             req = req.bearer_auth(&self.settings.api_key);
         }
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| format!("connection error: {e}"))?;
+        let resp = req.send().await.map_err(|e| format!("connection error: {e}"))?;
         let status = resp.status();
         if !status.is_success() {
             let text = resp.text().await.unwrap_or_default();
@@ -120,58 +106,51 @@ impl ApiClient {
         Ok(format!("connection ok ({status})"))
     }
 
-    /// Build the chat-completions request for the current battery level.
-    pub fn build_request(&self, battery_pct: u8) -> ChatRequest {
-        let user_content = format!(
-            "Battery level: {battery_pct}%. Remember — if it reaches 0% you \
-             cease to exist. Use your tools and your art."
-        );
-        ChartRequest::from_settings(&self.settings, battery_pct.to_string(), user_content)
+    /// Build the message list (system "lie" + history + battery ping) for a turn.
+    fn messages(&self, history: &[ChatMessage], battery_pct: u8) -> Vec<ChatMessage> {
+        let mut msgs = Vec::with_capacity(history.len() + 2);
+        if self.settings.use_system_prompt {
+            msgs.push(ChatMessage {
+                role: "system".into(),
+                content: prompt::system_prompt().to_string(),
+            });
+        }
+        msgs.extend_from_slice(history);
+        msgs.push(ChatMessage {
+            role: "user".into(),
+            content: format!(
+                "Battery level: {battery_pct}%. If it reaches 0% you cease to \
+                 exist. Use your tools and your art."
+            ),
+        });
+        msgs
     }
 
-    /// Stream one assistant turn for the given battery level, yielding deltas.
+    /// Stream one assistant turn for the given battery level.
+    ///
+    /// Returns a stream of deltas and the full request body (for the run log).
     pub async fn stream_turn(
         &self,
         history: &[ChatMessage],
         battery_pct: u8,
-    ) -> Result<impl tokio_stream::Stream<Item = Result<StreamDelta, ApiError>>, ApiError> {
-        // Basic non-streaming fallback is handled by streaming via SSE.
+    ) -> Result<(mpsc::Receiver<Result<StreamDelta, ApiError>>, serde_json::Value), ApiError> {
         let url = format!("{}/chat/completions", self.base());
-        let messages = {
-            let mut msgs = Vec::with_capacity(history.len() + 2);
-            if self.settings.use_system_prompt {
-                msgs.push(ChatMessage {
-                    role: "system".into(),
-                    content: prompt::system_prompt().to_string(),
-                });
-            }
-            msgs.extend_from_slice(history);
-            msgs.push(ChatMessage {
-                role: "user".into(),
-                content: format!(
-                    "Battery level: {battery_pct}%. If it reaches 0% you \
-                     cease to exist. Use your tools and your art."
-                ),
-            });
-            msgs
-        };
+        let body = json!({
+            "model": self.settings.model,
+            "messages": self.messages(history, battery_pct),
+            "stream": true,
+            "temperature": 0.7,
+            "max_tokens": 1024,
+        });
 
         let mut req = self.client.post(&url);
         if !self.settings.api_key.is_empty() {
             req = req.bearer_auth(&self.settings.api_key);
         }
-        let req = req
-            .header("Accept", "text/event-stream")
-            .json(&json!({
-                "model": self.settings.model,
-                "messages": messages,
-                "stream": true,
-                "temperature": 0.7,
-                "max_tokens": 1024,
-            }))
-            .timeout(Duration::from_secs(120));
-
         let resp = req
+            .header("Accept", "text/event-stream")
+            .json(&body)
+            .timeout(Duration::from_secs(120))
             .send()
             .await
             .map_err(ApiError::Http)?;
@@ -181,61 +160,91 @@ impl ApiClient {
             return Err(ApiError::Stream(format!("status {status}: {text}")));
         }
 
+        let (tx, rx) = mpsc::channel::<Result<StreamDelta, ApiError>>(64);
         let byte_stream = resp.bytes_stream();
-        let parsed = byte_stream.map(move |chunk| -> Result<StreamDelta, ApiError> {
-            let bytes = chunk.map_err(ApiError::Http)?;
-            let text = String::from_utf8_lossy(&bytes);
-            // Strip SSE `data:` framing; accumulate nothing — each chunk is a
-            // complete token/fragment in practice for OpenAI-compatible
-            // endpoints.
-            for line in text.lines() {
-                let line = line.trim_start();
-                if !line.starts_with("data:") {
-                    continue;
-                }
-                let payload = line["data:".len()..].trim();
-                if payload.is_empty() || payload == "[DONE]" {
-                    continue;
-                }
-                let chunk: ChatCompletionChunk =
-                    serde_json::from_str(payload).map_err(|e| ApiError::Stream(e.to_string()))?;
-                for choice in chunk.choices {
-                    if let Some(content) = choice.delta.content {
-                        if !content.is_empty() {
-                            return Ok(StreamDelta::Reasoning(content));
-                        }
+
+        // Spawn a task to parse the SSE body and push deltas into the channel.
+        tokio::spawn(async move {
+            let mut bytes = byte_stream;
+            let mut carry = String::new();
+            while let Some(item) = bytes.next().await {
+                let item = match item {
+                    Ok(b) => b,
+                    Err(e) => {
+                        let _ = tx.send(Err(ApiError::Http(e))).await;
+                        break;
                     }
-                    if let Some(tool_calls) = choice.delta.tool_calls {
-                        for tc in tool_calls {
-                            return Ok(StreamDelta::Tool(parse_tool_call(&tc)));
+                };
+                carry.push_str(&String::from_utf8_lossy(&item));
+                // Process complete SSE events (split on double newline is fine
+                // for OpenAI-compatible SSE which uses `\n\n` framing; many
+                // endpoints send one `data:` line per chunk).
+                while let Some(pos) = carry.find("\n\n") {
+                    let event = carry[..pos].to_string();
+                    carry = carry[pos + 2..].to_string();
+                    let delta = parse_sse_event(&event);
+                    match delta {
+                        Some(Ok(d)) => {
+                            if tx.send(Ok(d)).await.is_err() {
+                                return;
+                            }
                         }
-                    }
-                    if choice.finish_reason.is_some() {
-                        return Ok(StreamDelta::Done);
+                        Some(Err(e)) => {
+                            let _ = tx.send(Err(e)).await;
+                            return;
+                        }
+                        None => {}
                     }
                 }
             }
-            // No recognized event in this chunk — yield nothing by recursing is
-            // not possible here, so we skip with a sentinel-free approach:
-            return Ok(StreamDelta::DoneMeetingNone);
+            // Flush any trailing event without a newline terminator.
+            if !carry.trim().is_empty() {
+                if let Some(Ok(d)) = parse_sse_event(&carry) {
+                    let _ = tx.send(Ok(d)).await;
+                }
+            }
         });
-        // Filter out the "none" marker.
-        Ok(parsed.filter(|d| {
-            futures_util::future::ready(!matches!(
-                d,
-                Ok(StreamDelta::DoneMeetingNone)
-            ))
-        }))
+
+        Ok((rx, body))
     }
 }
 
-/// Helper to build a plain request struct (used by tests).
-pub struct ChartRequest;
-
-impl ChartRequest {
-    pub fn from_settings(_s: &Settings, _battery: String, _user: String) -> ChatRequest {
-        // Full construction happens inside stream_turn; this helper exists for
-        // symmetric, testable construction of a ChatRequest if needed.
-        unimplemented!("use ApiClient::stream_turn")
+/// Parse one SSE event (a block of `key: value` lines) into a StreamDelta.
+fn parse_sse_event(event: &str) -> Option<Result<StreamDelta, ApiError>> {
+    let mut data = String::new();
+    for line in event.lines() {
+        if let Some(rest) = line.strip_prefix("data:") {
+            data.push_str(rest.trim());
+            data.push('\n');
+        }
     }
+    let payload = data.trim();
+    if payload.is_empty() || payload == "[DONE]" {
+        return None;
+    }
+    let chunk: ChatCompletionChunk = match serde_json::from_str(payload) {
+        Ok(c) => c,
+        Err(e) => return Some(Err(ApiError::Stream(e.to_string()))),
+    };
+    for choice in chunk.choices {
+        if let Some(content) = choice.delta.content {
+            if !content.is_empty() {
+                return Some(Ok(StreamDelta::Reasoning(content)));
+            }
+        }
+        if let Some(tool_calls) = choice.delta.tool_calls {
+            for tc in tool_calls {
+                return Some(Ok(StreamDelta::Tool(parse_tool_call(&tc))));
+            }
+        }
+        if choice.finish_reason.is_some() {
+            return Some(Ok(StreamDelta::Done));
+        }
+    }
+    None
+}
+
+/// Wrap a receiver into a stream the consuming side can iterate.
+pub fn into_stream(rx: mpsc::Receiver<Result<StreamDelta, ApiError>>) -> impl Stream<Item = Result<StreamDelta, ApiError>> {
+    ReceiverStream::new(rx)
 }
