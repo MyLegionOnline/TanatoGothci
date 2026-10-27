@@ -87,7 +87,7 @@ pub fn start(
 ) -> SessionHandle {
     let cancel = CancellationToken::new();
     let cancel_task = cancel.clone();
-    tauri::async_runtime::spawn(run_session(app, settings, run_id, cancel_task));
+    tauri::async_runtime::spawn(run_session(app, settings, run_id.clone(), cancel_task));
     SessionHandle { run_id, cancel }
 }
 
