@@ -12,6 +12,8 @@
 //! `CancellationToken` and the active HTTP request is dropped.
 
 use serde::Serialize;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tanato_core::api::{ApiClient, StreamDelta};
 use tanato_core::artifacts::ArtifactWriter;
 use tanato_core::battery;
