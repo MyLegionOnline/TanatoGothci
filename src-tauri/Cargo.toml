@@ -1,1 +1,30 @@
-[context receipt: argument content of write_file; chars=1040; sha256=835d51743c8f. The call already ran; read_file shows the current file if its text is still needed.]
+[package]
+name = "tanatogothci"
+version = "0.1.0"
+description = "TanatoGothci — a research harness for observing LLM agents under battery pressure."
+authors = ["TanatoGothci"]
+edition = "2021"
+
+# tauri-build generates the OS/bundle metadata used by tauri.
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7" }
+chrono = { version = "0.4", features = ["serde"] }
+# Platform-independent engine (config, client, battery, tools, events).
+tanato-core = { path = "../core" }
+
+[lib]
+name = "tanatogothci_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+# This feature is used for production builds where `devPath` points to the
+# filesystem and for the `tauri dev` flow. Do not remove.
+custom-protocol = ["tauri/custom-protocol"]

@@ -1,0 +1,11 @@
+# Rust / Cargo
+/target
+**/target/
+Cargo.lock.orig
+
+# Node / Tauri CLI
+node_modules/
+package-lock.json
+
+# Tauri generated schemas
+src-tauri/gen/
