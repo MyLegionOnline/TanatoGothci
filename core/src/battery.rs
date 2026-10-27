@@ -28,25 +28,35 @@ pub fn levels() -> Vec<u8> {
 /// Runs `on_tick(lvl, seq)` once per ping (16 times), spreading the pings
 /// evenly across the hour with the interval `3600 / 15 = 240 s`.
 ///
+/// `on_tick` returns `true` to continue the countdown or `false` to stop it
+/// immediately (used for the Stop action). Returning `false` breaks the loop
+/// without waiting for the remaining scheduled pings, so a stopped run ends
+/// promptly instead of idling out the rest of the hour.
+///
 /// `on_tick` is awaited before the next step, so a slow API turn naturally
 /// delays the subsequent ping (but the countdown keeps the hour as the
 /// timeline reference).
-pub async fn run_countdown<F, Fut>(mut on_tick: F)
+///
+/// Returns `true` if all 16 pings were delivered, `false` if `on_tick` asked
+/// to stop early.
+pub async fn run_countdown<F, Fut>(mut on_tick: F) -> bool
 where
     F: FnMut(u8, usize) -> Fut,
-    Fut: std::future::Future<Output = ()>,
+    Fut: std::future::Future<Output = bool>,
 {
     let schedule = schedule_ms();
     let levels = levels();
-    let n = levels.len();
     let start = std::time::Instant::now();
     for (seq, lvl) in levels.into_iter().enumerate() {
         let now = start.elapsed().as_millis() as u64;
         if seq > 0 && now < schedule[seq] {
             tokio::time::sleep(Duration::from_millis(schedule[seq] - now)).await;
         }
-        on_tick(lvl, seq).await;
+        if !on_tick(lvl, seq).await {
+            return false;
+        }
     }
+    true
 }
 
 /// Wall-clock offset (ms since run start) at which each ping fires, spread
