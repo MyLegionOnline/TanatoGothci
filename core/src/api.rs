@@ -167,10 +167,17 @@ impl ApiClient {
     /// Stream one assistant turn for the given battery level.
     ///
     /// Returns a stream of deltas and the full request body (for the run log).
+    ///
+    /// When `raw_sink` is provided, each raw SSE payload received from the
+    /// endpoint is forwarded to it (already parsed to JSON when possible, or as
+    /// a raw string otherwise). This lets the run's artifact writer record full
+    /// responses (spec §8.1 `response_chunk`) without coupling the client to
+    /// the logging layer.
     pub async fn stream_turn(
         &self,
         history: &[ChatMessage],
         battery_pct: u8,
+        raw_sink: Option<tokio::sync::mpsc::Sender<serde_json::Value>>,
     ) -> Result<(mpsc::Receiver<Result<StreamDelta, ApiError>>, serde_json::Value), ApiError> {
         let url = format!("{}/chat/completions", self.base());
         let body = self.build_request_body(history, battery_pct);
