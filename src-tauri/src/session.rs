@@ -137,6 +137,13 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     let deactivated_flag = Arc::new(AtomicBool::new(false));
     let api_error_flag = Arc::new(AtomicBool::new(false));
 
+    // `writer` is shared with the per-ping closures (run_countdown is FnMut and
+    // its async blocks must not move it out); flags mutated inside the async
+    // blocks are shared as atomics so they survive the closure calls.
+    // Arc<Mutex<Option<ArtifactWriter>>> keeps the writer alive for finish_run
+    // after run_countdown returns (Option<ArtifactWriter> is Send).
+    let writer = Arc::new(Mutex::new(writer));
+
     let completed = battery::run_countdown(|level, seq| {
         let app = app.clone();
         let client = client.clone();
