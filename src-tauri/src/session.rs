@@ -272,7 +272,8 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     } else {
         "finished"
     };
-    finish_run(&mut writer.lock().unwrap(), &app, run_id, why.to_string()).await;
+    let mut writer_final = writer.lock().unwrap();
+    finish_run(&mut writer_final, &app, run_id, why.to_string()).await;
 }
 
 /// Persist the run artifacts and emit the final event.
