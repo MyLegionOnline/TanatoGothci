@@ -179,6 +179,6 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
 }
 
 /// Emit an event to the frontend, ignoring a closed listener.
-fn emit<E: tauri::Event + Serialize + Clone>(app: &AppHandle, event: &str, payload: E) {
+fn emit<S: Serialize + Clone>(app: &AppHandle, event: &str, payload: S) {
     let _ = app.emit(event, payload);
 }
