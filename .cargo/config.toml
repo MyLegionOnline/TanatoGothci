@@ -1,5 +1,0 @@
-# Use Rust's bundled lld as the linker because no system `cc` is available in
-# the build container. On a normal developer machine (Windows with MSVC /
-# Linux with gcc) the default linker is used instead.
-[target.x86_64-unknown-linux-gnu]
-linker = "rust-lld"

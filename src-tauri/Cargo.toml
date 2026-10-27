@@ -15,7 +15,8 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
-tokio-util = { version = "0.7", features = ["rt"] }
+# `sync` provides `tokio_util::sync::CancellationToken` used to cancel a run.
+tokio-util = { version = "0.7", features = ["sync"] }
 chrono = { version = "0.4", features = ["serde"] }
 # Platform-independent engine (config, client, battery, tools, events).
 tanato-core = { path = "../core" }
