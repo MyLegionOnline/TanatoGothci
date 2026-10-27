@@ -221,6 +221,21 @@ impl ApiClient {
                 while let Some(pos) = carry.find("\n\n") {
                     let event = carry[..pos].to_string();
                     carry = carry[pos + 2..].to_string();
+                    // Forward the raw SSE payload to the artifact sink (best
+                    // effort — a closed sink just stops further reporting).
+                    if let Some(sink) = &raw_sink {
+                        let payload = event
+                            .lines()
+                            .filter_map(|l| l.strip_prefix("data:").map(|s| s.trim().to_string()))
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        let val = if payload.is_empty() || payload == "[DONE]" {
+                            serde_json::Value::String(payload)
+                        } else {
+                            serde_json::from_str(&payload).unwrap_or(serde_json::Value::String(payload))
+                        };
+                        let _ = sink.send(val).await;
+                    }
                     let delta = parse_sse_event(&event);
                     match delta {
                         Some(Ok(d)) => {
