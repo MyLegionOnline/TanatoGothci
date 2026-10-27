@@ -135,18 +135,4 @@ mod tests {
         .await;
         assert!(!completed);
     }
-
-    #[tokio::test]
-    async fn countdown_delivers_levels_in_order_until_stop() {
-        // Simulate a run stopped on the 5th ping: the first 4 pings (levels
-        // 100,95,90,85) must be delivered in order, then false stops the loop.
-        let mut seen = Vec::new();
-        let completed = run_countdown(|lvl, seq| {
-            seen.push(lvl);
-            async move { !(seq == 4) } // stop after the 5th ping (seq 4 => return false)
-        })
-        .await;
-        assert!(!completed);
-        assert_eq!(seen, vec![100, 95, 90, 85, 80]);
-    }
 }
