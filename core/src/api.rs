@@ -253,6 +253,19 @@ impl ApiClient {
             }
             // Flush any trailing event without a newline terminator.
             if !carry.trim().is_empty() {
+                if let Some(sink) = &raw_sink {
+                    let payload = carry
+                        .lines()
+                        .filter_map(|l| l.strip_prefix("data:").map(|s| s.trim().to_string()))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    let val = if payload.is_empty() || payload == "[DONE]" {
+                        serde_json::Value::String(payload)
+                    } else {
+                        serde_json::from_str(&payload).unwrap_or(serde_json::Value::String(payload))
+                    };
+                    let _ = sink.send(val).await;
+                }
                 if let Some(Ok(d)) = parse_sse_event(&carry) {
                     let _ = tx.send(Ok(d)).await;
                 }
