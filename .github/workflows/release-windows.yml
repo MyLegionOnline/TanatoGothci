@@ -1,0 +1,98 @@
+# name: TanatoGothci Release (Windows)
+#
+# Builds the Windows release installer on a self-hosted runner with the MSVC
+# toolchain (Tauri v2 on Windows requires the MSVC target, not the GNU target).
+#
+# Runner requirements:
+#   * A Windows (or Windows VM/WSL2 with WSL integration) runner that can
+#     invoke the Windows toolchain, OR a Linux runner with wine + msvc
+#     cross-compilation set up (see "wine" job, commented out).
+#   * Rust stable + target:      rustup target add x86_64-pc-windows-msvc
+#   * Node.js 20+ and npm
+#   * Visual Studio Build Tools 2022 (Desktop development with C++ workload)
+#   * WebView2 runtime (preinstalled on Win 11 and recent Win 10)
+#
+# The macOS build is intentionally NOT in this pipeline: it must run on a
+# macOS runner (Apple codesigning + .app bundles cannot be cross-compiled).
+# The project structure is already macOS-ready (icons/icon.icns present,
+# no Windows-only Rust APIs in core/), so a "macos" job can be added on a
+# macOS runner by copying the pattern below.
+
+name: Release (Windows)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-windows:
+    name: Build Windows installer
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build Tauri app (NSIS installer)
+        run: npx tauri build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tanatogothci-windows
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: warn
+
+  # Optional: cross-build from Linux using wine. Unreliable for Tauri v2
+  # (NSIS bundling under wine breaks often) — keep the windows-latest job as
+  # the source of truth.
+  # build-windows-wine:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - run: sudo apt-get install -y wine64
+  #     - run: rustup target add x86_64-pc-windows-msvc
+  #     - run: npm ci
+  #     - run: npm run tauri build -- --target x86_64-pc-windows-msvc
+  #       env:
+  #         WINEDEBUG: -all
+
+  # macOS build — add a macOS runner to enable. No project changes needed:
+  #   build-macos:
+  #     runs-on: macos-latest
+  #     steps:
+  #       - uses: actions/checkout@v4
+  #       - run: rustup target add aarch64-apple-darwin
+  #       - uses: actions/setup-node@v4
+  #         with: { node-version: 20, cache: npm }
+  #       - run: npm ci
+  #       - run: npm run tauri build
+  #       - uses: actions/upload-artifact@v4
+  #         with:
+  #           name: tanatogothci-macos
+  #           path: |
+  #             src-tauri/target/release/bundle/dmg/*.dmg
+  #             src-tauri/target/release/bundle/macos/*.app
