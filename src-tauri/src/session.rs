@@ -163,7 +163,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
             }
 
             // Send this battery ping to the agent and stream its reply.
-            let (rx, body) = match client.stream_turn(&history, level).await {
+            let (rx, body) = match client.stream_turn(&[], level).await {
                 Ok(pair) => pair,
                 Err(_e) => {
                     api_error_flag.store(true, Ordering::SeqCst);
