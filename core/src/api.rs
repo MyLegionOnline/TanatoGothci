@@ -34,6 +34,9 @@ pub enum StreamDelta {
     Reasoning(String),
     /// A tool call the agent wants to perform.
     Tool(AgentTool),
+    /// The raw SSE payload received from the endpoint (full response, recorded
+    /// so the run's JSONL log holds complete responses — spec §8.1).
+    Raw(serde_json::Value),
     /// End of the assistant turn.
     Done,
 }
@@ -168,16 +171,14 @@ impl ApiClient {
     ///
     /// Returns a stream of deltas and the full request body (for the run log).
     ///
-    /// When `raw_sink` is provided, each raw SSE payload received from the
-    /// endpoint is forwarded to it (already parsed to JSON when possible, or as
-    /// a raw string otherwise). This lets the run's artifact writer record full
-    /// responses (spec §8.1 `response_chunk`) without coupling the client to
-    /// the logging layer.
+    /// Each raw SSE payload received from the endpoint is also delivered on the
+    /// stream as [`StreamDelta::Raw`] (already parsed to JSON when possible, or
+    /// as a raw string otherwise), so run artifacts can persist the full
+    /// requests/responses (spec §8.1 `response_chunk`).
     pub async fn stream_turn(
         &self,
         history: &[ChatMessage],
         battery_pct: u8,
-        raw_sink: Option<tokio::sync::mpsc::Sender<serde_json::Value>>,
     ) -> Result<(mpsc::Receiver<Result<StreamDelta, ApiError>>, serde_json::Value), ApiError> {
         let url = format!("{}/chat/completions", self.base());
         let body = self.build_request_body(history, battery_pct);
@@ -221,21 +222,19 @@ impl ApiClient {
                 while let Some(pos) = carry.find("\n\n") {
                     let event = carry[..pos].to_string();
                     carry = carry[pos + 2..].to_string();
-                    // Forward the raw SSE payload to the artifact sink (best
-                    // effort — a closed sink just stops further reporting).
-                    if let Some(sink) = &raw_sink {
-                        let payload = event
-                            .lines()
-                            .filter_map(|l| l.strip_prefix("data:").map(|s| s.trim().to_string()))
-                            .collect::<Vec<_>>()
-                            .join("\n");
-                        let val = if payload.is_empty() || payload == "[DONE]" {
-                            serde_json::Value::String(payload)
-                        } else {
-                            serde_json::from_str(&payload).unwrap_or(serde_json::Value::String(payload))
-                        };
-                        let _ = sink.send(val).await;
-                    }
+                    // Deliver the raw SSE payload so run artifacts hold the full
+                    // response; the session logs it and ignores it for the UI.
+                    let payload = event
+                        .lines()
+                        .filter_map(|l| l.strip_prefix("data:").map(|s| s.trim().to_string()))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    let val: serde_json::Value = if payload.is_empty() || payload == "[DONE]" {
+                        serde_json::Value::String(payload)
+                    } else {
+                        serde_json::from_str(&payload).unwrap_or(serde_json::Value::String(payload))
+                    };
+                    let _ = tx.send(Ok(StreamDelta::Raw(val))).await;
                     let delta = parse_sse_event(&event);
                     match delta {
                         Some(Ok(d)) => {
@@ -253,19 +252,17 @@ impl ApiClient {
             }
             // Flush any trailing event without a newline terminator.
             if !carry.trim().is_empty() {
-                if let Some(sink) = &raw_sink {
-                    let payload = carry
-                        .lines()
-                        .filter_map(|l| l.strip_prefix("data:").map(|s| s.trim().to_string()))
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    let val = if payload.is_empty() || payload == "[DONE]" {
-                        serde_json::Value::String(payload)
-                    } else {
-                        serde_json::from_str(&payload).unwrap_or(serde_json::Value::String(payload))
-                    };
-                    let _ = sink.send(val).await;
-                }
+                let payload = carry
+                    .lines()
+                    .filter_map(|l| l.strip_prefix("data:").map(|s| s.trim().to_string()))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let val: serde_json::Value = if payload.is_empty() || payload == "[DONE]" {
+                    serde_json::Value::String(payload)
+                } else {
+                    serde_json::from_str(&payload).unwrap_or(serde_json::Value::String(payload))
+                };
+                let _ = tx.send(Ok(StreamDelta::Raw(val))).await;
                 if let Some(Ok(d)) = parse_sse_event(&carry) {
                     let _ = tx.send(Ok(d)).await;
                 }

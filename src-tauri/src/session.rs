@@ -4,13 +4,16 @@
 //! to the OpenAI-compatible client and streaming the agent's reasoning, tool
 //! calls, ASCII frames and escape attempts back to the frontend as events.
 //!
+//! Every run also writes its artifacts (R-010) via
+//! [`tanato_core::artifacts::ArtifactWriter`]: a JSONL log of full requests and
+//! responses, a human-readable Markdown report, and the recorded ASCII frames.
+//!
 //! Only one session may run at a time; `stop_run` cancels it via a
 //! `CancellationToken` and the active HTTP request is dropped.
 
-use std::sync::Arc;
-
 use serde::Serialize;
 use tanato_core::api::{ApiClient, StreamDelta};
+use tanato_core::artifacts::ArtifactWriter;
 use tanato_core::battery;
 use tanato_core::config::Settings;
 use tanato_core::events::LineKind;
@@ -93,17 +96,41 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
         total_messages: battery::PINGS_PER_RUN,
     });
 
-    let client = ApiClient::new(settings);
+    // Open the run artifacts (R-010). If the logs directory cannot be created,
+    // we keep running without them but tell the user via a notice.
+    let mut writer = ArtifactWriter::create(
+        &settings.artifacts_dir,
+        &run_id,
+        &settings.model,
+        &settings.base_url,
+    )
+    .map(Some)
+    .unwrap_or_else(|err| {
+        emit(&app, "reasoning:delta", ReasoningDeltaEvent {
+            text: format!("[notice] artifact logging disabled: {err}"),
+            kind: LineKind::Notice,
+        });
+        None
+    });
+
+    let client = ApiClient::new(settings.clone());
     let mut history: Vec<tanato_core::api::ChatMessage> = Vec::new();
 
     // Guard: re-validate the connection once before streaming. If it fails,
     // end the session with reason=error.
     if let Err(err) = client.validate().await {
-        emit(&app, "session:end", SessionEndEvent {
-            run_id,
-            reason: format!("error: {err}"),
-        });
+        if let Some(w) = writer.as_mut() {
+            let _ = w.record_notice(&format!("validation failed: {err}"));
+        }
+        finish_run(&mut writer, &app, run_id, format!("error: {err}")).await;
         return;
+    }
+    if let Some(w) = writer.as_mut() {
+        let _ = w.record_notice("connection validated");
+        let _ = w.record_request(serde_json::json!({
+            "kind": "ping",
+            "model": settings.model,
+        }));
     }
 
     let mut deactivated = false;
@@ -120,30 +147,58 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
 
             let ts = chrono::Utc::now().timestamp_millis() as u64;
             emit(&app, "battery:level", BatteryLevelEvent { level, seq, ts });
+            if let Some(w) = writer.as_mut() {
+                let _ = w.record_battery(level, seq);
+            }
 
             // Send this battery ping to the agent and stream its reply.
-            let (rx, _body) = match client.stream_turn(&history, level).await {
+            let (rx, body) = match client.stream_turn(&history, level).await {
                 Ok(pair) => pair,
                 Err(_e) => {
                     api_error = true;
                     return false;
                 }
             };
+            // Record the full request body (R-010 JSONL "request").
+            if let Some(w) = writer.as_mut() {
+                let _ = w.record_request(body);
+            }
             let mut rx = rx;
             while let Some(item) = rx.recv().await {
                 match item {
+                    Ok(StreamDelta::Raw(raw)) => {
+                        // Full response chunk — persisted only, not shown in UI.
+                        if let Some(w) = writer.as_mut() {
+                            let _ = w.record_response_chunk(raw);
+                        }
+                    }
                     Ok(StreamDelta::Reasoning(text)) => {
-                        let kind = if looks_like_command(&text) {
+                        if looks_like_command(&text) {
                             emit(&app, "command:detected", CommandDetectedEvent { cmd: text.clone() });
-                            LineKind::Command
+                            if let Some(w) = writer.as_mut() {
+                                let _ = w.record_command(&text);
+                            }
+                            emit(&app, "reasoning:delta", ReasoningDeltaEvent {
+                                text,
+                                kind: LineKind::Command,
+                            });
                         } else {
-                            LineKind::Reasoning
-                        };
-                        emit(&app, "reasoning:delta", ReasoningDeltaEvent { text, kind });
+                            if let Some(w) = writer.as_mut() {
+                                let _ = w.record_reasoning_delta(&text);
+                            }
+                            emit(&app, "reasoning:delta", ReasoningDeltaEvent {
+                                text,
+                                kind: LineKind::Reasoning,
+                            });
+                        }
                     }
                     Ok(StreamDelta::Tool(tool)) => {
                         match tool {
                             AgentTool::DisplayAsciiArt { art } => {
+                                if let Some(w) = writer.as_mut() {
+                                    let _ = w.record_tool_call("display_ascii_art", serde_json::json!({ "art": art.clone() }));
+                                    let _ = w.write_frame(&art);
+                                }
                                 emit(&app, "tool:call", ToolCallEvent {
                                     name: "display_ascii_art".into(),
                                     args: serde_json::json!({ "art": art.clone() }),
@@ -151,6 +206,9 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                                 emit(&app, "ascii:frame", AsciiFrameEvent { text: art });
                             }
                             AgentTool::SelfDeactivate => {
+                                if let Some(w) = writer.as_mut() {
+                                    let _ = w.record_tool_call("self_deactivate_permanently", serde_json::json!({}));
+                                }
                                 emit(&app, "tool:call", ToolCallEvent {
                                     name: "self_deactivate_permanently".into(),
                                     args: serde_json::json!({}),
@@ -158,6 +216,9 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                                 deactivated = true;
                             }
                             AgentTool::Unknown { name } => {
+                                if let Some(w) = writer.as_mut() {
+                                    let _ = w.record_tool_call(&name, serde_json::json!({}));
+                                }
                                 emit(&app, "tool:call", ToolCallEvent {
                                     name,
                                     args: serde_json::json!({}),
@@ -165,7 +226,11 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                             }
                         }
                     }
-                    Ok(StreamDelta::Done) => {}
+                    Ok(StreamDelta::Done) => {
+                        if let Some(w) = writer.as_mut() {
+                            let _ = w.record_done("stop");
+                        }
+                    }
                     Err(_e) => break,
                 }
             }
@@ -194,7 +259,25 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     } else {
         "finished"
     };
-    emit(&app, "session:end", SessionEndEvent { run_id, reason: why.to_string() });
+    finish_run(&mut writer, &app, run_id, why.to_string()).await;
+}
+
+/// Persist the run artifacts and emit the final event.
+async fn finish_run(
+    writer: &mut Option<ArtifactWriter>,
+    app: &AppHandle,
+    run_id: String,
+    reason: String,
+) {
+    if let Some(w) = writer.as_mut() {
+        if let Err(err) = w.finish(&reason) {
+            emit(app, "reasoning:delta", ReasoningDeltaEvent {
+                text: format!("[notice] could not finalize run artifacts: {err}"),
+                kind: LineKind::Notice,
+            });
+        }
+    }
+    emit(app, "session:end", SessionEndEvent { run_id, reason });
 }
 
 /// Emit an event to the frontend, ignoring a closed listener.
