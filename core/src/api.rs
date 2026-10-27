@@ -140,15 +140,9 @@ impl ApiClient {
         msgs
     }
 
-    /// Stream one assistant turn for the given battery level.
-    ///
-    /// Returns a stream of deltas and the full request body (for the run log).
-    pub async fn stream_turn(
-        &self,
-        history: &[ChatMessage],
-        battery_pct: u8,
-    ) -> Result<(mpsc::Receiver<Result<StreamDelta, ApiError>>, serde_json::Value), ApiError> {
-        let url = format!("{}/chat/completions", self.base());
+    /// Assemble the JSON request body for one turn, including the R-009
+    /// reasoning hint when the user has enabled it.
+    fn build_request_body(&self, history: &[ChatMessage], battery_pct: u8) -> serde_json::Value {
         let mut body = json!({
             "model": self.settings.model,
             "messages": self.messages(history, battery_pct),
@@ -167,6 +161,19 @@ impl ApiClient {
                 obj.insert("reasoning".into(), json!({ "effort": eff }));
             }
         }
+        body
+    }
+
+    /// Stream one assistant turn for the given battery level.
+    ///
+    /// Returns a stream of deltas and the full request body (for the run log).
+    pub async fn stream_turn(
+        &self,
+        history: &[ChatMessage],
+        battery_pct: u8,
+    ) -> Result<(mpsc::Receiver<Result<StreamDelta, ApiError>>, serde_json::Value), ApiError> {
+        let url = format!("{}/chat/completions", self.base());
+        let body = self.build_request_body(history, battery_pct);
 
         let mut req = self.client.post(&url);
         if !self.settings.api_key.is_empty() {
