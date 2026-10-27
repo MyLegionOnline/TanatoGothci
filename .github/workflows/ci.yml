@@ -1,3 +1,9 @@
+# CI for TanatoGothci.
+# Assumptions (Q-001): Rust stable toolchain (dtolnay/rust-toolchain@stable),
+# default cargo profiles plus explicit flags (--workspace --all-features for
+# test, --all-targets -D warnings for clippy, --release for build).
+# Branch logic: dev push -> cargo test only; main push -> test + clippy + build.
+
 name: CI
 
 on:
