@@ -54,7 +54,7 @@ pub fn parse_tool_call(env: &ToolCallEnvelope) -> AgentTool {
                 .map(|f| f.arguments.clone())
                 .unwrap_or_default();
             // Arguments is a JSON string; try to extract an "art" field.
-            let art = extract_art_field(&args).unwrap_or_else(|| args);
+            let art = extract_art_field(&args).unwrap_or(args);
             AgentTool::DisplayAsciiArt { art }
         }
         TOOL_SELF_DEACTIVATE => AgentTool::SelfDeactivate,
