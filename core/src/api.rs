@@ -210,7 +210,7 @@ impl ApiClient {
                 carry.push_str(&String::from_utf8_lossy(&item));
                 // Process complete SSE events (split on double newline is fine
                 // for OpenAI-compatible SSE which uses `\n\n` framing; many
-                // endpoints send one `data:` line per chunk).
+                // endpoints send one `data:` line per chunk.
                 while let Some(pos) = carry.find("\n\n") {
                     let event = carry[..pos].to_string();
                     carry = carry[pos + 2..].to_string();
@@ -385,4 +385,3 @@ mod tests {
         assert_eq!(ApiClient::reasoning_effort(0), "high");
     }
 }
-
