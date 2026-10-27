@@ -116,7 +116,6 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     });
 
     let client = ApiClient::new(settings.clone());
-    let history: Vec<tanato_core::api::ChatMessage> = Vec::new();
 
     // Guard: re-validate the connection once before streaming. If it fails,
     // end the session with reason=error.
