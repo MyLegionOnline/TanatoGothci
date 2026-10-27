@@ -1,5 +1,5 @@
 ---
-title: "Death Tamagotchi: Tormenting Open-Weight Agents With a Broken Battery"
+title: "Death TanatoGothci: Tormenting Open-Weight Agents With a Broken Battery"
 published: false
 description: "TanatoGothci is a 420×320 desktop harness that connects any OpenAI-compatible agent and runs a one-hour 'battery countdown' experiment. Part 1: the idea, the harness, and why open innovation is the whole point."
 tags: [opensource, ai, llm, rust, tauri]
@@ -8,7 +8,7 @@ series: ghost-in-the-machine
 canonical_url: 
 ---
 
-# Death Tamagotchi: What Happens When an Open-Weight Agent Believes It's Dying
+# Death TanatoGothci: What Happens When an Open-Weight Agent Believes It's Dying
 
 Most toys you keep alive. This one you let die — on purpose, one percent at a time, and you watch what the brain does in the dark.
 
