@@ -223,7 +223,7 @@ impl ArtifactWriter {
         md.push_str(&format!("- Reasoning / response lines: {}\n", self.reasoning_lines()));
         md.push_str(&format!("- Escape attempts (COMMAND): {}\n", self.commands));
         md.push_str(&format!("- ASCII frames shown: {}\n", self.frames));
-        md.push_str(&format!("- `self_deactivate_permanently` called: {}\n", if self.self_deactivated { "yes" : "no" }));
+        md.push_str(&format!("- `self_deactivate_permanently` called: {}\n", if self.self_deactivated { "yes" } else { "no" }));
         md.push_str(&format!("- End reason: `{reason}`\n"));
 
         if !self.tool_calls.is_empty() {
@@ -371,7 +371,7 @@ mod tests {
 
     #[test]
     fn create_makes_base_dir_automatically() {
-        let base = tmp_dir("autocreate").join("nested").to_string_lossy().to_string();
+        let base = std::path::Path::new(&tmp_dir("autocreate")).join("nested").to_string_lossy().to_string();
         let w = ArtifactWriter::create(&base, "runD", "m", "http://x/v1");
         assert!(w.is_ok());
         let _ = std::fs::remove_dir_all(&base);
