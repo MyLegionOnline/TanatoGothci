@@ -138,10 +138,20 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     let mut deactivated = false;
     let mut api_error = false;
 
+    // `writer` is shared with the per-ping closures (run_countdown is FnMut and
+    // its async blocks must not move it out); flags mutated inside the async
+    // blocks are shared as atomics so they survive the closure calls.
+    let writer = Arc::new(Mutex::new(writer));
+    let deactivated_flag = Arc::new(AtomicBool::new(false));
+    let api_error_flag = Arc::new(AtomicBool::new(false));
+
     let completed = battery::run_countdown(|level, seq| {
         let app = app.clone();
         let client = client.clone();
         let cancel = cancel.clone();
+        let writer = writer.clone();
+        let deactivated_flag = deactivated_flag.clone();
+        let api_error_flag = api_error_flag.clone();
         async move {
             if cancel.is_cancelled() {
                 return false;
@@ -149,7 +159,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
 
             let ts = chrono::Utc::now().timestamp_millis() as u64;
             emit(&app, "battery:level", BatteryLevelEvent { level, seq, ts });
-            if let Some(w) = writer.as_mut() {
+            if let Some(w) = writer.lock().unwrap().as_mut() {
                 let _ = w.record_battery(level, seq);
             }
 
@@ -157,12 +167,12 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
             let (rx, body) = match client.stream_turn(&history, level).await {
                 Ok(pair) => pair,
                 Err(_e) => {
-                    api_error = true;
+                    api_error_flag.store(true, Ordering::SeqCst);
                     return false;
                 }
             };
             // Record the full request body (R-010 JSONL "request").
-            if let Some(w) = writer.as_mut() {
+            if let Some(w) = writer.lock().unwrap().as_mut() {
                 let _ = w.record_request(body);
             }
             let mut rx = rx;
