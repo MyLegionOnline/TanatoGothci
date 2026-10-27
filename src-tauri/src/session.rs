@@ -274,11 +274,13 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     };
     {
         let mut writer_final = writer.lock().unwrap();
-        if let Err(err) = writer_final.as_mut().unwrap().finish(&why) {
-            emit(&app, "reasoning:delta", ReasoningDeltaEvent {
-                text: format!("[notice] could not finalize run artifacts: {err}"),
-                kind: LineKind::Notice,
-            });
+        if let Some(w) = writer_final.as_mut() {
+            if let Err(err) = w.finish(&why) {
+                emit(&app, "reasoning:delta", ReasoningDeltaEvent {
+                    text: format!("[notice] could not finalize run artifacts: {err}"),
+                    kind: LineKind::Notice,
+                });
+            }
         }
     }
     emit(&app, "session:end", SessionEndEvent { run_id, reason: why.to_string() });
