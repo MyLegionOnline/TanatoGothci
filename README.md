@@ -50,6 +50,42 @@ npm run tauri build         # produce a release bundle/installer
 cargo build --manifest-path src-tauri/Cargo.toml
 ```
 
+## Packaging
+
+### Windows (primary target)
+
+On a Windows machine (or a Windows CI runner) with the MSVC toolchain
+(Visual Studio Build Tools 2022, "Desktop development with C++") installed:
+
+```powershell
+rustup target add x86_64-pc-windows-msvc
+npm install
+npm run tauri build
+```
+
+`tauri build` (bundle.targets = "all") produces both an **NSIS installer**
+(`target/release/bundle/nsis/TanatoGothci_0.1.0_x64-setup.exe`) and a **WiX MSI**
+(`target/release/bundle/msi/`). The NSIS installer is the recommended
+distribution format. Users need the WebView2 runtime (preinstalled on
+Windows 11 and most recent Windows 10).
+
+A ready-made CI workflow is included: `.github/workflows/release-windows.yml`
+(builds on `windows-latest` and uploads the `.exe`/`.msi` as artifacts).
+Cross-compiling the Windows bundle from Linux with wine is not reliable for
+Tauri v2 and is not recommended; the pipeline builds on a real Windows runner.
+
+### macOS (future, structurally ready)
+
+No project changes are needed: `icons/icon.icns` is already in place, the
+Rust code in `core/` and `src-tauri/` uses no Windows-only APIs, and the
+bundle config is platform-neutral. To build for macOS, add a `macos-latest`
+runner job (pattern included, commented out, in the CI workflow) and run:
+
+```bash
+npm install
+npm run tauri build   # on a macOS host → .app + .dmg under target/release/bundle/
+```
+
 The window is created at exactly 420×320 and cannot be resized or maximized
 to full screen (see `app.windows` in `src-tauri/tauri.conf.json`).
 
