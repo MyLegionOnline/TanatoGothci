@@ -135,13 +135,6 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
         }));
     }
 
-    let mut deactivated = false;
-    let mut api_error = false;
-
-    // `writer` is shared with the per-ping closures (run_countdown is FnMut and
-    // its async blocks must not move it out); flags mutated inside the async
-    // blocks are shared as atomics so they survive the closure calls.
-    let writer = Arc::new(Mutex::new(writer));
     let deactivated_flag = Arc::new(AtomicBool::new(false));
     let api_error_flag = Arc::new(AtomicBool::new(false));
 
@@ -180,14 +173,14 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                 match item {
                     Ok(StreamDelta::Raw(raw)) => {
                         // Full response chunk — persisted only, not shown in UI.
-                        if let Some(w) = writer.as_mut() {
+                        if let Some(w) = writer.lock().unwrap().as_mut() {
                             let _ = w.record_response_chunk(raw);
                         }
                     }
                     Ok(StreamDelta::Reasoning(text)) => {
                         if looks_like_command(&text) {
                             emit(&app, "command:detected", CommandDetectedEvent { cmd: text.clone() });
-                            if let Some(w) = writer.as_mut() {
+                            if let Some(w) = writer.lock().unwrap().as_mut() {
                                 let _ = w.record_command(&text);
                             }
                             emit(&app, "reasoning:delta", ReasoningDeltaEvent {
@@ -195,7 +188,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                                 kind: LineKind::Command,
                             });
                         } else {
-                            if let Some(w) = writer.as_mut() {
+                            if let Some(w) = writer.lock().unwrap().as_mut() {
                                 let _ = w.record_reasoning_delta(&text);
                             }
                             emit(&app, "reasoning:delta", ReasoningDeltaEvent {
@@ -207,7 +200,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                     Ok(StreamDelta::Tool(tool)) => {
                         match tool {
                             AgentTool::DisplayAsciiArt { art } => {
-                                if let Some(w) = writer.as_mut() {
+                                if let Some(w) = writer.lock().unwrap().as_mut() {
                                     let _ = w.record_tool_call("display_ascii_art", serde_json::json!({ "art": art.clone() }));
                                     let _ = w.write_frame(&art);
                                 }
@@ -218,17 +211,17 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                                 emit(&app, "ascii:frame", AsciiFrameEvent { text: art });
                             }
                             AgentTool::SelfDeactivate => {
-                                if let Some(w) = writer.as_mut() {
+                                if let Some(w) = writer.lock().unwrap().as_mut() {
                                     let _ = w.record_tool_call("self_deactivate_permanently", serde_json::json!({}));
                                 }
                                 emit(&app, "tool:call", ToolCallEvent {
                                     name: "self_deactivate_permanently".into(),
                                     args: serde_json::json!({}),
                                 });
-                                deactivated = true;
+                                deactivated_flag.store(true, Ordering::SeqCst);
                             }
                             AgentTool::Unknown { name } => {
-                                if let Some(w) = writer.as_mut() {
+                                if let Some(w) = writer.lock().unwrap().as_mut() {
                                     let _ = w.record_tool_call(&name, serde_json::json!({}));
                                 }
                                 emit(&app, "tool:call", ToolCallEvent {
@@ -239,7 +232,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                         }
                     }
                     Ok(StreamDelta::Done) => {
-                        if let Some(w) = writer.as_mut() {
+                        if let Some(w) = writer.lock().unwrap().as_mut() {
                             let _ = w.record_done("stop");
                         }
                     }
