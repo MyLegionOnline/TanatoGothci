@@ -251,7 +251,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
             if cancel.is_cancelled() {
                 return false;
             }
-            !deactivated
+            !deactivated_flag.load(Ordering::SeqCst)
         }
     })
     .await;
