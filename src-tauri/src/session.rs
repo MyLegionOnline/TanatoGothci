@@ -109,13 +109,13 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     let mut deactivated = false;
     let mut why = "finished".to_string();
 
-    battery::run_countdown(|level, seq| {
+    let completed = battery::run_countdown(|level, seq| {
         let app = app.clone();
         let client = client.clone();
         let cancel = cancel.clone();
         async move {
             if cancel.is_cancelled() {
-                return;
+                return false;
             }
 
             let ts = chrono::Utc::now().timestamp_millis() as u64;
@@ -124,7 +124,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
             // Send this battery ping to the agent and stream its reply.
             let (rx, _body) = match client.stream_turn(&history, level).await {
                 Ok(pair) => pair,
-                Err(_e) => return,
+                Err(_e) => return false,
             };
             let mut rx = rx;
             while let Some(item) = rx.recv().await {
@@ -167,11 +167,18 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                     Err(_e) => break,
                 }
             }
+
+            // Stop early if the agent asked to deactivate itself or Stop was
+            // pressed while streaming.
+            !cancel.is_cancelled() && !deactivated
         }
     })
     .await;
 
-    if why == "finished" {
+    if !completed && !deactivated {
+        // Stopped by the user (Stop) before the hour elapsed.
+        why = "stopped".to_string();
+    } else if why == "finished" {
         // Normal completion after the 16th ping.
         why = if deactivated { "self_deactivated" } else { "finished" }.to_string();
     }
