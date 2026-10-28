@@ -280,19 +280,7 @@ async fn run_session(
     // Derive the end reason from how the countdown ended.
     let deactivated = deactivated_flag.load(Ordering::SeqCst);
     let api_error = api_error_flag.load(Ordering::SeqCst);
-    let why: &str = if !completed {
-        if deactivated {
-            "self_deactivated"
-        } else if api_error {
-            "error"
-        } else {
-            "stopped"
-        }
-    } else if deactivated {
-        "self_deactivated"
-    } else {
-        "finished"
-    };
+    let why: &str = battery::end_reason(completed, deactivated, api_error);
     {
         let mut writer_final = writer.lock().unwrap();
         if let Some(w) = writer_final.as_mut() {
