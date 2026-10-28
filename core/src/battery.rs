@@ -181,6 +181,12 @@ mod tests {
     }
 
     #[test]
+    fn schedule_named_alias_matches_with_default() {
+        let s = schedule_ms();
+        assert_eq!(s, schedule_ms_with(DEFAULT_INTERVAL_SECS));
+    }
+
+    #[test]
     fn config_interval_is_respected() {
         // Back to the original hourly timeline: 240 s between pings.
         let s = schedule_ms_with(240);
