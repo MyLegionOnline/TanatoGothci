@@ -48,14 +48,15 @@
       <div id="validation-result" class="validation hidden"></div>
     </section>
 
-    <!-- Reasoning screen -->
-    <section id="screen-reasoning" class="screen">
-      <pre id="reasoning-log" class="reasoning-log"></pre>
-    </section>
-
-    <!-- ASCII art screen -->
-    <section id="screen-ascii" class="screen">
-      <pre id="ascii-art" class="ascii-art"></pre>
+    <!-- Live session: reasoning on top, ASCII art below — both visible at
+         the same time, fixed heights, no tab switching needed. -->
+    <section id="screen-session" class="screen active">
+      <div class="pane pane-reasoning">
+        <pre id="reasoning-log" class="reasoning-log"></pre>
+      </div>
+      <div class="pane pane-ascii">
+        <pre id="ascii-art" class="ascii-art"></pre>
+      </div>
     </section>
   </main>
 
