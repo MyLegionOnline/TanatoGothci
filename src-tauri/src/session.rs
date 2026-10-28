@@ -220,6 +220,8 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                     Ok(StreamDelta::Tool(tool)) => {
                         match tool {
                             AgentTool::DisplayAsciiArt { art } => {
+                                let normalized = normalize_frame(&art);
+                                emitted_frames.push(normalized);
                                 if let Some(w) = writer.lock().unwrap().as_mut() {
                                     let _ = w.record_tool_call("display_ascii_art", serde_json::json!({ "art": art.clone() }));
                                     let _ = w.write_frame(&art);
