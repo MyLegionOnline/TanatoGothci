@@ -36,6 +36,7 @@ pub fn run() {
         .manage(AppState {
             settings: Mutex::new(Settings::default()),
             session: Mutex::new(None),
+            ascii_geometry: Mutex::new(AsciiGeometry::default()),
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
@@ -45,6 +46,7 @@ pub fn run() {
             commands::stop_run,
             commands::get_run_status,
             commands::set_logs_dir,
+            commands::set_ascii_geometry,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
