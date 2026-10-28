@@ -19,6 +19,7 @@ use tanato_core::artifacts::ArtifactWriter;
 use tanato_core::battery;
 use tanato_core::config::Settings;
 use tanato_core::events::LineKind;
+use tanato_core::frames::{normalize_frame, FrameScanner};
 use tanato_core::tools::{looks_like_command, AgentTool};
 use tauri::{AppHandle, Emitter};
 use tokio_util::sync::CancellationToken;
@@ -175,6 +176,14 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                 let _ = w.record_request(body);
             }
             let mut rx = rx;
+            // Fallback frame source: the model often draws ASCII art directly
+            // in its text (run tanato_20261028_223254_2b1e: ASCII frames
+            // shown: 0) instead of calling display_ascii_art. Scan the text
+            // stream; frames found here are emitted in addition to the tool
+            // path, deduplicated against tool frames by normalized content.
+            // The raw text is NOT filtered — reasoning:delta stays unchanged.
+            let mut frame_scanner = FrameScanner::new();
+            let mut emitted_frames: Vec<String> = Vec::new();
             while let Some(item) = rx.recv().await {
                 match item {
                     Ok(StreamDelta::Raw(raw)) => {
@@ -184,6 +193,11 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                         }
                     }
                     Ok(StreamDelta::Reasoning(text)) => {
+                        for frame in frame_scanner.feed(&text) {
+                            emit_frame(
+                                &app, &writer, &mut emitted_frames, frame.text,
+                            );
+                        }
                         if looks_like_command(&text) {
                             emit(&app, "command:detected", CommandDetectedEvent { cmd: text.clone() });
                             if let Some(w) = writer.lock().unwrap().as_mut() {
