@@ -145,11 +145,14 @@ button#btn-stop { background: var(--cmd); color: #fff; border-color: var(--cmd);
 }
 
 /* ASCII art panel: monospace `pre` WITHOUT wrapping or word-breaking, so a
-   drawn frame keeps its fixed columns / rows intact (spec R-005). */
+   drawn frame keeps its fixed columns / rows intact (spec R-005).
+   Horizontal auto-fit of oversized frames is handled by the
+   ascii-measure-render task, not here. */
 #ascii-art, .ascii-art {
   margin: 0;
-  white-space: pre;
+  height: 100%;
   overflow: auto;
+  white-space: pre;
   font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
   font-size: 12px;
   line-height: 1.35;
