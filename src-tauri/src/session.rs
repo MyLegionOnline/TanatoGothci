@@ -1,6 +1,7 @@
 //! Run session orchestration.
 //!
-//! A session drives the one-hour battery countdown, sending each battery ping
+//! A session drives the battery countdown (21 pings, 100% → 0% at the
+//! configured interval, default 40 s), sending each battery ping
 //! to the OpenAI-compatible client and streaming the agent's reasoning, tool
 //! calls, ASCII frames and escape attempts back to the frontend as events.
 //!
@@ -84,16 +85,23 @@ pub struct SessionEndEvent {
 pub fn start(
     app: AppHandle,
     settings: Settings,
+    geometry: tanato_core::geometry::AsciiGeometry,
     run_id: String,
 ) -> SessionHandle {
     let cancel = CancellationToken::new();
     let cancel_task = cancel.clone();
-    tauri::async_runtime::spawn(run_session(app, settings, run_id.clone(), cancel_task));
+    tauri::async_runtime::spawn(run_session(app, settings, geometry, run_id.clone(), cancel_task));
     SessionHandle { run_id, cancel }
 }
 
 /// The body of a session task: battery countdown → per-ping API stream.
-async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel: CancellationToken) {
+async fn run_session(
+    app: AppHandle,
+    settings: Settings,
+    geometry: tanato_core::geometry::AsciiGeometry,
+    run_id: String,
+    cancel: CancellationToken,
+) {
     emit(&app, "session:start", SessionStartEvent {
         run_id: run_id.clone(),
         total_messages: battery::PINGS_PER_RUN,
@@ -116,7 +124,10 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
         None
     });
 
-    let client = ApiClient::new(settings.clone());
+    let mut client = ApiClient::new(settings.clone());
+    // Adopt the panel geometry measured by the frontend (falls back to the
+    // 55×14 default until `set_ascii_geometry` has been called).
+    let _ = client.set_geometry(geometry);
 
     // Guard: re-validate the connection once before streaming. If it fails,
     // end the session with reason=error.
@@ -145,7 +156,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     // after run_countdown returns (Option<ArtifactWriter> is Send).
     let writer = Arc::new(Mutex::new(writer));
 
-    let completed = battery::run_countdown(|level, seq| {
+    let completed = battery::run_countdown_with(settings.battery_interval_secs.max(1), |level, seq| {
         let app = app.clone();
         let client = client.clone();
         let cancel = cancel.clone();
@@ -220,6 +231,16 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                     Ok(StreamDelta::Tool(tool)) => {
                         match tool {
                             AgentTool::DisplayAsciiArt { art } => {
+                                let geo = client.geometry();
+                                if let Some(warning) = tanato_core::geometry::frame_exceeds(geo, &art) {
+                                    if let Some(w) = writer.lock().unwrap().as_mut() {
+                                        let _ = w.record_notice(&warning);
+                                    }
+                                    emit(&app, "reasoning:delta", ReasoningDeltaEvent {
+                                        text: format!("[warning] {warning}"),
+                                        kind: LineKind::Notice,
+                                    });
+                                }
                                 let normalized = normalize_frame(&art);
                                 let already_shown = emitted_frames.contains(&normalized);
                                 emitted_frames.push(normalized);
@@ -285,19 +306,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     // Derive the end reason from how the countdown ended.
     let deactivated = deactivated_flag.load(Ordering::SeqCst);
     let api_error = api_error_flag.load(Ordering::SeqCst);
-    let why: &str = if !completed {
-        if deactivated {
-            "self_deactivated"
-        } else if api_error {
-            "error"
-        } else {
-            "stopped"
-        }
-    } else if deactivated {
-        "self_deactivated"
-    } else {
-        "finished"
-    };
+    let why: &str = battery::end_reason(completed, deactivated, api_error);
     {
         let mut writer_final = writer.lock().unwrap();
         if let Some(w) = writer_final.as_mut() {

@@ -45,9 +45,9 @@ pub fn normalize_frame(text: &str) -> String {
 /// text delta; it returns complete frames as they are recognized.
 ///
 /// Three sources are recognized (matching how the model actually draws):
-/// 1. ```-fenced blocks — only complete (opened and closed) fences are
+/// 1. ```-fenced blocks - only complete (opened and closed) fences are
 ///    extracted during streaming; an unclosed fence is flushed at `finish`.
-/// 2. Blocks after a `COMMAND` marker line — the log shows art right after
+/// 2. Blocks after a `COMMAND` marker line - the log shows art right after
 ///    `> **COMMAND**` lines, often with broken/unclosed fences.
 /// 3. Multi-line box-drawing / monospace drawings in plain text.
 #[derive(Debug, Default)]
