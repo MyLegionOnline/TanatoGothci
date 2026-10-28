@@ -18,17 +18,28 @@ function switchTab(name) {
   );
 }
 
+// Both screens (reasoning + ASCII) are always visible in the session layout,
+// so "reasoning"/"ascii" tab names from the old three-tab layout map onto the
+// single "session" screen. Keeps tab switching logic minimal.
+function normalizeTab(name) {
+  return name === "reasoning" || name === "ascii" ? "session" : name;
+}
+
 function append(lineEl, text, cls) {
-  const d = document.createElement("div");
-  d.textContent = text;
-  if (cls) d.className = cls;
-  lineEl.appendChild(d);
+  // Use <span> (phrasing content) instead of <div> (block) — a <div> is
+  // invalid inside <pre> and breaks its preformatted line layout.
+  const s = document.createElement("span");
+  s.textContent = text;
+  if (cls) s.className = cls;
+  lineEl.appendChild(s);
+  // Preserve one line-break per appended chunk inside the <pre>.
+  lineEl.appendChild(document.createTextNode("\n"));
   lineEl.scrollTop = lineEl.scrollHeight;
 }
 
 async function main() {
   document.querySelectorAll(".tab").forEach((t) =>
-    t.addEventListener("click", () => switchTab(t.dataset.tab))
+    t.addEventListener("click", () => switchTab(normalizeTab(t.dataset.tab)))
   );
 
   // Load saved config into the settings form.
@@ -40,6 +51,7 @@ async function main() {
     $("cfg-artifacts").value = cfg.artifacts_dir || "";
     $("cfg-reasoning").checked = !!cfg.reasoning_enabled;
     $("cfg-rlevel").value = cfg.reasoning_level || 3;
+    $("cfg-binterval").value = cfg.battery_interval_secs || 40;
   } catch (e) {
     console.error("get_config failed", e);
   }
@@ -54,6 +66,7 @@ async function main() {
         use_system_prompt: true,
         reasoning_enabled: $("cfg-reasoning").checked,
         reasoning_level: Number($("cfg-rlevel").value) || 3,
+        battery_interval_secs: Number($("cfg-binterval").value) || 40,
       },
     });
   }

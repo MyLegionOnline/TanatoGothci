@@ -11,7 +11,7 @@
 html, body {
   margin: 0;
   width: 420px;
-  height: 320px;
+  height: 640px;
   overflow: hidden;
   background: var(--bg);
   color: var(--fg);
@@ -68,6 +68,28 @@ body {
 
 .screen.active { display: block; }
 
+/* Live session layout: two stacked panes, each with a fixed share of the
+   viewport so incoming data never reflows/resizes the other pane
+   (no hardcoded pixel heights — they come from the flex layout). */
+#screen-session {
+  display: none;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+#screen-session.active { display: flex; }
+
+.pane {
+  min-height: 0;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+}
+
+.pane-reasoning { flex: 1 1 50%; }
+
+.pane-ascii { flex: 1 1 50%; }
+
 label {
   display: block;
   margin-bottom: 6px;
@@ -107,14 +129,41 @@ button#btn-stop { background: var(--cmd); color: #fff; border-color: var(--cmd);
 .validation.err { background: #3a1d1d; color: #ff9089; }
 .hidden { display: none; }
 
-.reasoning-log, .ascii-art {
+/* Reasoning log: keep the streaming newlines (pre-wrap) but wrap long text
+   softly at word boundaries (overflow-wrap) — do NOT break words
+   character-by-character at the container edge (word-break:break-word was
+   producing the ~8-char wrapped lines). It scrolls vertically inside its own
+   pane so the reasoning stream never pushes the ASCII pane around. */
+.reasoning-log {
   margin: 0;
+  height: 100%;
+  overflow-y: auto;
+  padding: 6px 8px;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
   font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
   font-size: 12px;
   line-height: 1.35;
 }
+
+/* ASCII art panel: monospace `pre` WITHOUT wrapping or word-breaking, so a
+   drawn frame keeps its fixed columns / rows intact (spec R-005).
+   Horizontal auto-fit of oversized frames is handled by the
+   ascii-measure-render task, not here. */
+#ascii-art, .ascii-art {
+  margin: 0;
+  height: 100%;
+  overflow: auto;
+  padding: 6px 8px;
+  white-space: pre;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* Lines appended by main.js are <span> (phrasing content — valid inside
+   <pre>, unlike a <div>) rendered as block rows so highlight styles apply. */
+.reasoning-log > span, .ascii-art > span { display: block; }
 
 .cmd-line {
   color: var(--cmd);

@@ -3,11 +3,13 @@
 //! * `get_config` / `save_config` / `set_logs_dir` — settings persistence.
 //! * `validate_connection` — ping the OpenAI-compatible endpoint before a run.
 //! * `start_run` / `stop_run` / `get_run_status` — run lifecycle.
+//! * `set_ascii_geometry` — panel limits measured by the frontend (plan §2).
 
 use std::path::PathBuf;
 
 use tanato_core::api::ApiClient;
 use tanato_core::config::Settings;
+use tanato_core::geometry::AsciiGeometry;
 use tauri::{AppHandle, Manager, State};
 
 use crate::session;
@@ -69,6 +71,37 @@ pub fn set_logs_dir(
     Ok(())
 }
 
+/// The frontend measured the ASCII panel; store the limits so the next run
+/// injects them into the system prompt and the `display_ascii_art` contract.
+/// Zero / absurdly small measurements are ignored (they must never replace an
+/// already-known geometry). Returns the geometry actually in effect.
+#[tauri::command]
+pub fn set_ascii_geometry(
+    state: State<'_, AppState>,
+    cols: u32,
+    rows: u32,
+) -> Result<AsciiGeometry, String> {
+    set_ascii_geometry_impl(state.inner(), cols, rows)
+}
+
+fn set_ascii_geometry_impl(
+    state: &AppState,
+    cols: u32,
+    rows: u32,
+) -> Result<AsciiGeometry, String> {
+    let geo = AsciiGeometry { cols, rows };
+    if !geo.is_sane() {
+        // Log-and-ignore: keep whatever geometry we already had.
+        eprintln!(
+            "set_ascii_geometry: ignoring invalid measurement {}x{}",
+            geo.cols, geo.rows
+        );
+        return Ok(*state.ascii_geometry.lock().unwrap());
+    }
+    *state.ascii_geometry.lock().unwrap() = geo;
+    Ok(geo)
+}
+
 /// Ping the endpoint to make sure it acts like an OpenAI-compatible server.
 #[tauri::command]
 pub async fn validate_connection(state: State<'_, AppState>) -> Result<ValidationResult, String> {
@@ -100,8 +133,9 @@ pub fn start_run(app: AppHandle, state: State<'_, AppState>) -> Result<session::
     // Re-validate before starting; if invalid, refuse to run.
     settings.validate().map_err(|e| e.to_string())?;
 
+    let geometry = *state.ascii_geometry.lock().unwrap();
     let run_id = make_run_id();
-    let handle = session::start(app, settings, run_id.clone());
+    let handle = session::start(app, settings, geometry, run_id.clone());
     *lock = Some(handle);
 
     Ok(session::SessionStartEvent {

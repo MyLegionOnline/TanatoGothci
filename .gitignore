@@ -8,7 +8,11 @@ Cargo.lock.orig
 
 # Node / Tauri CLI
 node_modules/
-package-lock.json
+# package-lock.json is intentionally committed: the release pipeline's
+# actions/setup-node (cache: npm) fails the job when the lock file is missing
 
 # Tauri generated schemas
 src-tauri/gen/
+
+# Standalone dev.to answer files (kept local, never committed)
+/devto_answer_*
