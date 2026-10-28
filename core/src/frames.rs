@@ -204,7 +204,7 @@ impl FrameScanner {
         if norm.is_empty() || norm.lines().count() < 2 {
             return None;
         }
-        if self.seen.iter().any(|s| *s == norm) {
+        if self.seen.contains(&norm) {
             return None;
         }
         self.seen.push(norm.clone());
