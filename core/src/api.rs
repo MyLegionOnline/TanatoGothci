@@ -151,7 +151,11 @@ impl ApiClient {
         if self.settings.use_system_prompt {
             msgs.push(ChatMessage {
                 role: "system".into(),
-                content: prompt::system_prompt().to_string(),
+                content: format!(
+                    "{}{}",
+                    prompt::system_prompt(),
+                    geometry::prompt_geometry_clause(self.geometry)
+                ),
             });
         }
         msgs.extend_from_slice(history);
