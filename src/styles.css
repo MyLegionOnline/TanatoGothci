@@ -131,9 +131,12 @@ button#btn-stop { background: var(--cmd); color: #fff; border-color: var(--cmd);
 /* Reasoning log: keep the streaming newlines (pre-wrap) but wrap long text
    softly at word boundaries (overflow-wrap) — do NOT break words
    character-by-character at the container edge (word-break:break-word was
-   producing the ~8-char wrapped lines). */
+   producing the ~8-char wrapped lines). It scrolls vertically inside its own
+   pane so the reasoning stream never pushes the ASCII pane around. */
 .reasoning-log {
   margin: 0;
+  height: 100%;
+  overflow-y: auto;
   white-space: pre-wrap;
   overflow-wrap: break-word;
   font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
