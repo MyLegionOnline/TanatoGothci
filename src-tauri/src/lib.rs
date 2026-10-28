@@ -16,6 +16,7 @@ pub mod session;
 use std::sync::Mutex;
 
 use tanato_core::config::Settings;
+use tanato_core::geometry::AsciiGeometry;
 
 /// Global state shared with the Tauri commands.
 pub struct AppState {
@@ -23,6 +24,9 @@ pub struct AppState {
     pub settings: Mutex<Settings>,
     /// The currently running session, if any (only one at a time).
     pub session: Mutex<Option<session::SessionHandle>>,
+    /// Measured ASCII panel limits (plan §2). Defaults to 55×14 until the
+    /// frontend sends a measurement via `set_ascii_geometry`.
+    pub ascii_geometry: Mutex<AsciiGeometry>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
