@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 ///   intended harness, but configurable).
 /// * `reasoning_enabled` / `reasoning_level` — R-009: user-selected toggle and
 ///   level (1–5). No automatic model detection.
+/// * `battery_interval_secs` — interval between battery pings in seconds
+///   (§6): 40 by default (fast debug cadence, 20 × 40 s = 800 s per run);
+///   set it to 240 to restore the original one-hour timeline.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Settings {
     pub base_url: String,
@@ -24,10 +27,23 @@ pub struct Settings {
     pub reasoning_enabled: bool,
     #[serde(default = "default_reasoning_level")]
     pub reasoning_level: u8,
+    /// Seconds between battery pings (§6). Default 40 (debug); 240 = hourly.
+    #[serde(default = "default_battery_interval_secs")]
+    pub battery_interval_secs: u64,
 }
 
 fn default_reasoning_level() -> u8 {
     3
+}
+
+fn default_battery_interval_secs() -> u64 {
+    tanato_battery_default_interval()
+}
+
+/// Kept as a small indirection so `config.rs` does not have to depend on the
+/// whole battery module for a constant (avoids cycles in doc references).
+fn tanato_battery_default_interval() -> u64 {
+    crate::battery::DEFAULT_INTERVAL_SECS
 }
 
 impl Default for Settings {
