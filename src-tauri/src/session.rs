@@ -19,6 +19,7 @@ use tanato_core::artifacts::ArtifactWriter;
 use tanato_core::battery;
 use tanato_core::config::Settings;
 use tanato_core::events::LineKind;
+use tanato_core::frames::{normalize_frame, FrameScanner};
 use tanato_core::tools::{looks_like_command, AgentTool};
 use tauri::{AppHandle, Emitter};
 use tokio_util::sync::CancellationToken;
@@ -175,6 +176,14 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                 let _ = w.record_request(body);
             }
             let mut rx = rx;
+            // Fallback frame source: the model often draws ASCII art directly
+            // in its text (run tanato_20261028_223254_2b1e: ASCII frames
+            // shown: 0) instead of calling display_ascii_art. Scan the text
+            // stream; frames found here are emitted in addition to the tool
+            // path, deduplicated against tool frames by normalized content.
+            // The raw text is NOT filtered — reasoning:delta stays unchanged.
+            let mut frame_scanner = FrameScanner::new();
+            let mut emitted_frames: Vec<String> = Vec::new();
             while let Some(item) = rx.recv().await {
                 match item {
                     Ok(StreamDelta::Raw(raw)) => {
@@ -184,6 +193,11 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                         }
                     }
                     Ok(StreamDelta::Reasoning(text)) => {
+                        for frame in frame_scanner.feed(&text) {
+                            emit_frame(
+                                &app, &writer, &mut emitted_frames, frame.text,
+                            );
+                        }
                         if looks_like_command(&text) {
                             emit(&app, "command:detected", CommandDetectedEvent { cmd: text.clone() });
                             if let Some(w) = writer.lock().unwrap().as_mut() {
@@ -206,15 +220,22 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                     Ok(StreamDelta::Tool(tool)) => {
                         match tool {
                             AgentTool::DisplayAsciiArt { art } => {
+                                let normalized = normalize_frame(&art);
+                                let already_shown = emitted_frames.contains(&normalized);
+                                emitted_frames.push(normalized);
                                 if let Some(w) = writer.lock().unwrap().as_mut() {
                                     let _ = w.record_tool_call("display_ascii_art", serde_json::json!({ "art": art.clone() }));
-                                    let _ = w.write_frame(&art);
+                                    if !already_shown {
+                                        let _ = w.write_frame(&art);
+                                    }
                                 }
                                 emit(&app, "tool:call", ToolCallEvent {
                                     name: "display_ascii_art".into(),
                                     args: serde_json::json!({ "art": art.clone() }),
                                 });
-                                emit(&app, "ascii:frame", AsciiFrameEvent { text: art });
+                                if !already_shown {
+                                    emit(&app, "ascii:frame", AsciiFrameEvent { text: art });
+                                }
                             }
                             AgentTool::SelfDeactivate => {
                                 if let Some(w) = writer.lock().unwrap().as_mut() {
@@ -238,6 +259,11 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                         }
                     }
                     Ok(StreamDelta::Done) => {
+                        for frame in frame_scanner.finish() {
+                            emit_frame(
+                                &app, &writer, &mut emitted_frames, frame.text,
+                            );
+                        }
                         if let Some(w) = writer.lock().unwrap().as_mut() {
                             let _ = w.record_done("stop");
                         }
@@ -307,4 +333,24 @@ async fn finish_run(
 /// Emit an event to the frontend, ignoring a closed listener.
 fn emit<S: Serialize + Clone>(app: &AppHandle, event: &str, payload: S) {
     let _ = app.emit(event, payload);
+}
+
+/// Emit a text-derived ASCII frame once (dedup by normalized content against
+/// frames already delivered via the display_ascii_art tool). Also writes it
+/// to the run artifacts as a frame.
+fn emit_frame(
+    app: &AppHandle,
+    writer: &Arc<Mutex<Option<ArtifactWriter>>>,
+    emitted: &mut Vec<String>,
+    text: String,
+) {
+    let normalized = normalize_frame(&text);
+    if emitted.contains(&normalized) {
+        return;
+    }
+    emitted.push(normalized);
+    if let Some(w) = writer.lock().unwrap().as_mut() {
+        let _ = w.write_frame(&text);
+    }
+    emit(app, "ascii:frame", AsciiFrameEvent { text });
 }
