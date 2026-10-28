@@ -13,14 +13,13 @@
   </header>
 
   <nav class="tabs">
-    <button id="tab-settings" class="tab active" data-tab="settings">Settings</button>
-    <button id="tab-reasoning" class="tab" data-tab="reasoning">Reasoning</button>
-    <button id="tab-ascii" class="tab" data-tab="ascii">ASCII Art</button>
+    <button id="tab-settings" class="tab" data-tab="settings">Settings</button>
+    <button id="tab-session" class="tab active" data-tab="session">Session</button>
   </nav>
 
   <main class="content">
-    <!-- Settings screen -->
-    <section id="screen-settings" class="screen active">
+    <!-- Settings screen (unchanged config form, opened via its tab) -->
+    <section id="screen-settings" class="screen">
       <label>Base URL
         <input id="cfg-base-url" type="text" placeholder="http://localhost:11434/v1" />
       </label>
@@ -53,14 +52,15 @@
       <div id="validation-result" class="validation hidden"></div>
     </section>
 
-    <!-- Reasoning screen -->
-    <section id="screen-reasoning" class="screen">
-      <pre id="reasoning-log" class="reasoning-log"></pre>
-    </section>
-
-    <!-- ASCII art screen -->
-    <section id="screen-ascii" class="screen">
-      <pre id="ascii-art" class="ascii-art"></pre>
+    <!-- Live session: reasoning on top, ASCII art below — both visible at
+         the same time, fixed heights, no tab switching needed. -->
+    <section id="screen-session" class="screen active">
+      <div class="pane pane-reasoning">
+        <pre id="reasoning-log" class="reasoning-log"></pre>
+      </div>
+      <div class="pane pane-ascii">
+        <pre id="ascii-art" class="ascii-art"></pre>
+      </div>
     </section>
   </main>
 
