@@ -1,6 +1,7 @@
 //! Run session orchestration.
 //!
-//! A session drives the one-hour battery countdown, sending each battery ping
+//! A session drives the battery countdown (21 pings, 100% → 0% at the
+//! configured interval, default 40 s), sending each battery ping
 //! to the OpenAI-compatible client and streaming the agent's reasoning, tool
 //! calls, ASCII frames and escape attempts back to the frontend as events.
 //!
