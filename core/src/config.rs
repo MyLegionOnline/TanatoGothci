@@ -56,6 +56,7 @@ impl Default for Settings {
             use_system_prompt: true,
             reasoning_enabled: false,
             reasoning_level: 3,
+            battery_interval_secs: tanato_battery_default_interval(),
         }
     }
 }
