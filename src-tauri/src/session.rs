@@ -145,7 +145,9 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     // after run_countdown returns (Option<ArtifactWriter> is Send).
     let writer = Arc::new(Mutex::new(writer));
 
-    let completed = battery::run_countdown(|level, seq| {
+    let completed = battery::run_countdown_with(
+        settings.battery_interval_secs.max(battery::DEFAULT_INTERVAL_SECS.min(1)).max(1),
+        |level, seq| {
         let app = app.clone();
         let client = client.clone();
         let cancel = cancel.clone();
