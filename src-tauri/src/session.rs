@@ -116,7 +116,10 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
         None
     });
 
-    let client = ApiClient::new(settings.clone());
+    let mut client = ApiClient::new(settings.clone());
+    // Adopt the panel geometry measured by the frontend (falls back to the
+    // 55×14 default until `set_ascii_geometry` has been called).
+    let _ = client.set_geometry(app_state_geometry.clone());
 
     // Guard: re-validate the connection once before streaming. If it fails,
     // end the session with reason=error.
