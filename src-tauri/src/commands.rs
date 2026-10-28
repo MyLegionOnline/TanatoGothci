@@ -125,8 +125,9 @@ pub fn start_run(app: AppHandle, state: State<'_, AppState>) -> Result<session::
     // Re-validate before starting; if invalid, refuse to run.
     settings.validate().map_err(|e| e.to_string())?;
 
+    let geometry = *state.ascii_geometry.lock().unwrap();
     let run_id = make_run_id();
-    let handle = session::start(app, settings, run_id.clone());
+    let handle = session::start(app, settings, geometry, run_id.clone());
     *lock = Some(handle);
 
     Ok(session::SessionStartEvent {
