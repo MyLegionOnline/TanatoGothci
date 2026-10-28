@@ -242,6 +242,7 @@ mod tests {
         })
         .await;
         assert!(completed);
+        let seen = seen.into_inner().unwrap();
         assert_eq!(seen.len(), PINGS_PER_RUN);
         assert_eq!(*seen.last().unwrap(), 0);
         // A full run ends with a dead battery.
