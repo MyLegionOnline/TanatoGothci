@@ -3,6 +3,7 @@
 //! * `get_config` / `save_config` / `set_logs_dir` — settings persistence.
 //! * `validate_connection` — ping the OpenAI-compatible endpoint before a run.
 //! * `start_run` / `stop_run` / `get_run_status` — run lifecycle.
+//! * `set_ascii_geometry` — panel limits measured by the frontend (plan §2).
 
 use std::path::PathBuf;
 
