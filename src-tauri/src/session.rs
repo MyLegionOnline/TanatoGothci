@@ -210,6 +210,16 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                     Ok(StreamDelta::Tool(tool)) => {
                         match tool {
                             AgentTool::DisplayAsciiArt { art } => {
+                                let geo = client.geometry();
+                                if let Some(warning) = tanato_core::geometry::frame_exceeds(geo, &art) {
+                                    if let Some(w) = writer.lock().unwrap().as_mut() {
+                                        let _ = w.record_notice(&warning);
+                                    }
+                                    emit(&app, "reasoning:delta", ReasoningDeltaEvent {
+                                        text: format!("[warning] {warning}"),
+                                        kind: LineKind::Notice,
+                                    });
+                                }
                                 if let Some(w) = writer.lock().unwrap().as_mut() {
                                     let _ = w.record_tool_call("display_ascii_art", serde_json::json!({ "art": art.clone() }));
                                     let _ = w.write_frame(&art);
