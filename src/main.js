@@ -19,10 +19,14 @@ function switchTab(name) {
 }
 
 function append(lineEl, text, cls) {
-  const d = document.createElement("div");
-  d.textContent = text;
-  if (cls) d.className = cls;
-  lineEl.appendChild(d);
+  // Use <span> (phrasing content) instead of <div> (block) — a <div> is
+  // invalid inside <pre> and breaks its preformatted line layout.
+  const s = document.createElement("span");
+  s.textContent = text;
+  if (cls) s.className = cls;
+  lineEl.appendChild(s);
+  // Preserve one line-break per appended chunk inside the <pre>.
+  lineEl.appendChild(document.createTextNode("\n"));
   lineEl.scrollTop = lineEl.scrollHeight;
 }
 
