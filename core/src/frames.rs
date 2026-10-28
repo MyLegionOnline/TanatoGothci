@@ -111,12 +111,11 @@ impl FrameScanner {
     /// A closing (or opening of a new) fence, or a prose boundary after
     /// enough art-ish lines have accumulated.
     fn find_cut(&self) -> Option<usize> {
-        for (idx, line_end) in self.buf.match_indices('\n') {
+        for (line_end, _) in self.buf.match_indices('\n') {
             let line = &self.buf[..line_end];
             if line.trim_start().starts_with("```") {
                 return Some(line_end + 1);
             }
-            let _ = idx;
             // A clearly wordy prose line ends an unfenced drawing region.
             if line_is_wordy(line) && self.art_run_len(0, line_end) >= MIN_PLAIN_LINES {
                 return Some(line_end + 1);
