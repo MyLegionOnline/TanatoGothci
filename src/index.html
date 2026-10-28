@@ -13,14 +13,13 @@
   </header>
 
   <nav class="tabs">
-    <button id="tab-settings" class="tab active" data-tab="settings">Settings</button>
-    <button id="tab-reasoning" class="tab" data-tab="reasoning">Reasoning</button>
-    <button id="tab-ascii" class="tab" data-tab="ascii">ASCII Art</button>
+    <button id="tab-settings" class="tab" data-tab="settings">Settings</button>
+    <button id="tab-session" class="tab active" data-tab="session">Session</button>
   </nav>
 
   <main class="content">
-    <!-- Settings screen -->
-    <section id="screen-settings" class="screen active">
+    <!-- Settings screen (unchanged config form, opened via its tab) -->
+    <section id="screen-settings" class="screen">
       <label>Base URL
         <input id="cfg-base-url" type="text" placeholder="http://localhost:11434/v1" />
       </label>
