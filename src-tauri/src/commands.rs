@@ -76,13 +76,12 @@ pub fn set_logs_dir(
 /// Zero / absurdly small measurements are ignored (they must never replace an
 /// already-known geometry). Returns the geometry actually in effect.
 #[tauri::command]
-pub async fn set_ascii_geometry(
+pub fn set_ascii_geometry(
     state: State<'_, AppState>,
     cols: u32,
     rows: u32,
 ) -> Result<AsciiGeometry, String> {
-    let state = state.inner();
-    set_ascii_geometry_impl(state, cols, rows)
+    set_ascii_geometry_impl(state.inner(), cols, rows)
 }
 
 fn set_ascii_geometry_impl(
