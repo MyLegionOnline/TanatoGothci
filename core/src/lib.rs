@@ -10,13 +10,15 @@
 //! * `tools`   — tool-call parsing and escape (command) detection;
 //! * `api`     — OpenAI-compatible client (validation ping + SSE streaming);
 //! * `artifacts` — per-run artifact logging (JSONL / Markdown / ASCII frames);
-//! * `geometry` — measured ASCII panel limits (system prompt + tool contract).
+//! * `geometry` — measured ASCII panel limits (system prompt + tool contract);
+//! * `frames`  — ASCII frame fallback extraction from the model text stream.
 
 pub mod api;
 pub mod artifacts;
 pub mod battery;
 pub mod config;
 pub mod events;
+pub mod frames;
 pub mod geometry;
 pub mod prompt;
 pub mod tools;
