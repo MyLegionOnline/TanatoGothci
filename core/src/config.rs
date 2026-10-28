@@ -77,6 +77,9 @@ impl Settings {
         if self.reasoning_enabled && !(1..=5).contains(&self.reasoning_level) {
             return Err("Reasoning level must be between 1 and 5.".to_string());
         }
+        if self.battery_interval_secs == 0 {
+            return Err("Battery interval must be at least 1 second.".to_string());
+        }
         Ok(())
     }
 }
