@@ -221,7 +221,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                         match tool {
                             AgentTool::DisplayAsciiArt { art } => {
                                 let normalized = normalize_frame(&art);
-                                let already_shown = emitted_frames.iter().any(|s| *s == normalized);
+                                let already_shown = emitted_frames.contains(&normalized);
                                 emitted_frames.push(normalized);
                                 if let Some(w) = writer.lock().unwrap().as_mut() {
                                     let _ = w.record_tool_call("display_ascii_art", serde_json::json!({ "art": art.clone() }));
@@ -345,7 +345,7 @@ fn emit_frame(
     text: String,
 ) {
     let normalized = normalize_frame(&text);
-    if emitted.iter().any(|s| *s == normalized) {
+    if emitted.contains(&normalized) {
         return;
     }
     emitted.push(normalized);
