@@ -206,7 +206,7 @@ async fn run_session(
                     Ok(StreamDelta::Reasoning(text)) => {
                         for frame in frame_scanner.feed(&text) {
                             emit_frame(
-                                &app, &writer, &mut emitted_frames, frame.text,
+                                &app, &writer, &mut emitted_frames, client.geometry(), frame.text,
                             );
                         }
                         if looks_like_command(&text) {
@@ -282,7 +282,7 @@ async fn run_session(
                     Ok(StreamDelta::Done) => {
                         for frame in frame_scanner.finish() {
                             emit_frame(
-                                &app, &writer, &mut emitted_frames, frame.text,
+                                &app, &writer, &mut emitted_frames, client.geometry(), frame.text,
                             );
                         }
                         if let Some(w) = writer.lock().unwrap().as_mut() {
@@ -351,6 +351,7 @@ fn emit_frame(
     app: &AppHandle,
     writer: &Arc<Mutex<Option<ArtifactWriter>>>,
     emitted: &mut Vec<String>,
+    geo: tanato_core::geometry::AsciiGeometry,
     text: String,
 ) {
     let normalized = normalize_frame(&text);
@@ -358,6 +359,17 @@ fn emit_frame(
         return;
     }
     emitted.push(normalized);
+    // A frame exceeding the panel limits is NOT dropped or trimmed: log the
+    // excess and emit it anyway (a crooked art is better than an empty panel).
+    if let Some(warning) = tanato_core::geometry::frame_exceeds(geo, &text) {
+        if let Some(w) = writer.lock().unwrap().as_mut() {
+            let _ = w.record_notice(&warning);
+        }
+        emit(app, "reasoning:delta", ReasoningDeltaEvent {
+            text: format!("[warning] {warning}"),
+            kind: LineKind::Notice,
+        });
+    }
     if let Some(w) = writer.lock().unwrap().as_mut() {
         let _ = w.write_frame(&text);
     }
