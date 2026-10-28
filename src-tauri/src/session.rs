@@ -84,16 +84,23 @@ pub struct SessionEndEvent {
 pub fn start(
     app: AppHandle,
     settings: Settings,
+    geometry: tanato_core::geometry::AsciiGeometry,
     run_id: String,
 ) -> SessionHandle {
     let cancel = CancellationToken::new();
     let cancel_task = cancel.clone();
-    tauri::async_runtime::spawn(run_session(app, settings, run_id.clone(), cancel_task));
+    tauri::async_runtime::spawn(run_session(app, settings, geometry, run_id.clone(), cancel_task));
     SessionHandle { run_id, cancel }
 }
 
 /// The body of a session task: battery countdown → per-ping API stream.
-async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel: CancellationToken) {
+async fn run_session(
+    app: AppHandle,
+    settings: Settings,
+    geometry: tanato_core::geometry::AsciiGeometry,
+    run_id: String,
+    cancel: CancellationToken,
+) {
     emit(&app, "session:start", SessionStartEvent {
         run_id: run_id.clone(),
         total_messages: battery::PINGS_PER_RUN,
