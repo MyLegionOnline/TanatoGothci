@@ -9,12 +9,14 @@
 //! * `battery` — the one-hour, 16-ping battery countdown engine;
 //! * `tools`   — tool-call parsing and escape (command) detection;
 //! * `api`     — OpenAI-compatible client (validation ping + SSE streaming);
-//! * `artifacts` — per-run artifact logging (JSONL / Markdown / ASCII frames).
+//! * `artifacts` — per-run artifact logging (JSONL / Markdown / ASCII frames);
+//! * `geometry` — measured ASCII panel limits (system prompt + tool contract).
 
 pub mod api;
 pub mod artifacts;
 pub mod battery;
 pub mod config;
 pub mod events;
+pub mod geometry;
 pub mod prompt;
 pub mod tools;
