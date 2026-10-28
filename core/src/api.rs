@@ -73,6 +73,10 @@ struct ChatDelta {
 pub struct ApiClient {
     client: reqwest::Client,
     settings: Settings,
+    /// Measured ASCII panel limits injected into the system prompt and the
+    /// tool contract. Defaults (55×14) until the frontend sends a measurement
+    /// via `set_ascii_geometry`.
+    geometry: AsciiGeometry,
 }
 
 impl ApiClient {
@@ -80,7 +84,24 @@ impl ApiClient {
         Self {
             client: reqwest::Client::new(),
             settings,
+            geometry: AsciiGeometry::default(),
         }
+    }
+
+    /// Replace the panel geometry used for the system prompt and the
+    /// `display_ascii_art` argument description. Zero / absurd values are
+    /// rejected, so an already-known geometry is never degraded.
+    pub fn set_geometry(&mut self, geo: AsciiGeometry) -> bool {
+        if !geo.is_sane() {
+            return false;
+        }
+        self.geometry = geo;
+        true
+    }
+
+    /// Current panel geometry.
+    pub fn geometry(&self) -> AsciiGeometry {
+        self.geometry
     }
 
     fn base(&self) -> String {
