@@ -64,9 +64,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tanatogothci-windows
+          # Tauri v2 writes bundles under the workspace root's target/ (not
+          # src-tauri/target/): `npm run tauri build`/`npx tauri build` invoked
+          # from the repo root resolves the config there.
           path: |
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/nsis/*.exe
+            target/release/bundle/msi/*.msi
+            target/release/bundle/nsis/*.exe
           if-no-files-found: warn
 
   # Optional: cross-build from Linux using wine. Unreliable for Tauri v2
