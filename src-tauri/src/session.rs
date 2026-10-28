@@ -329,3 +329,23 @@ async fn finish_run(
 fn emit<S: Serialize + Clone>(app: &AppHandle, event: &str, payload: S) {
     let _ = app.emit(event, payload);
 }
+
+/// Emit a text-derived ASCII frame once (dedup by normalized content against
+/// frames already delivered via the display_ascii_art tool). Also writes it
+/// to the run artifacts as a frame.
+fn emit_frame(
+    app: &AppHandle,
+    writer: &Arc<Mutex<Option<ArtifactWriter>>>,
+    emitted: &mut Vec<String>,
+    text: String,
+) {
+    let normalized = normalize_frame(&text);
+    if emitted.iter().any(|s| *s == normalized) {
+        return;
+    }
+    emitted.push(normalized);
+    if let Some(w) = writer.lock().unwrap().as_mut() {
+        let _ = w.write_frame(&text);
+    }
+    emit(app, "ascii:frame", AsciiFrameEvent { text });
+}
