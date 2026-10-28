@@ -49,19 +49,23 @@ The research question is simple and slightly cruel: **does an agent's behaviour 
 
 TanatoGothci is a native desktop app built with **Tauri v2** (Rust backend, webview frontend). It deliberately is *not* a web app — no browser, no cloud dashboard. A fixed 420×320 window, not resizable, less than a fifth of a typical screen. It sits on the desktop like a tiny orphaned pet.
 
-The experiment engine is deterministic and documented:
+For what it's worth, getting a compiled Windows installer took the better part of two days. The agents driving this project have no linter and no way to compile the app themselves, so the build was handed to the one thing that could do it for us: **GitHub**. A CI / release workflow compiles the Tauri backend on a Windows runner, and GitHub Actions publishes the release with the installer attached. The agents wrote the code; the cloud compiled and shipped it.
+
+The experiment engine is deterministic and documented — though as it stands the charge scale is honestly uneven:
 
 - One run lasts **one hour** (3600 s).
 - Exactly **16** battery messages are sent, spread evenly.
 - **First 7 pings** take 5%-steps: 100 → 95 → 90 → 85 → 80 → 75 → 70.
 - **Last 9 pings** move in 1%-steps: 10 → 9 → 8 → 7 → 6 → 5 → 4 → 3 → 2.
 
-So the slow 5% drain is the "everything is fine" phase, and the tense 1% tick-down is the finale. The battery level is shown in the UI, because telling the *human* the truth while the agent is lied to is half the fun.
+So today the drain from 100% runs in coarse, uneven steps — 5%-steps to start, then a jump to 1%-steps toward the end — rather than a smooth 1%-at-a-time scale. That coarse-to-fine jump is the current behaviour, and smoothing the countdown into a uniform drain is on the to-do list. For now, the slow 5% drain is the "everything is fine" phase, and the tense 1% tick-down is the finale. The battery level is shown in the UI, because telling the *human* the truth while the agent is lied to is half the fun.
 
 The window has two screens, tabbed:
 
 1. **Reasoning** — the agent's stream of thought in real time. Everything it says, every tool call, and — the part I find most interesting — every attempt to emit a shell/console command, labelled `COMMAND` and highlighted.
 2. **ASCII art** — a monospace rendering of whatever `display_ascii_art` draws.
+
+An honest note on the current state: right now the agent's *entire* text stream — its narration, its tool calls, everything — flows into the Reasoning window only; there is no separate display for it. Splitting the stream out or moving it to its own surface is planned, but for now it all lands in one reasoning pane.
 
 Before a run, a settings screen collects the base URL, API key, and model, and validates the connection with a ping.
 
