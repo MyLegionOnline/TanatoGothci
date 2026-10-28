@@ -15,7 +15,7 @@ pub const DEFAULT_ASCII_COLS: u32 = 55;
 pub const DEFAULT_ASCII_ROWS: u32 = 14;
 
 /// Measured ASCII panel limits (columns × rows).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct AsciiGeometry {
     pub cols: u32,
     pub rows: u32,
