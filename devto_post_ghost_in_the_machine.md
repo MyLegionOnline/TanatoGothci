@@ -49,6 +49,8 @@ The research question is simple and slightly cruel: **does an agent's behaviour 
 
 TanatoGothci is a native desktop app built with **Tauri v2** (Rust backend, webview frontend). It deliberately is *not* a web app — no browser, no cloud dashboard. A fixed 420×320 window, not resizable, less than a fifth of a typical screen. It sits on the desktop like a tiny orphaned pet.
 
+For what it's worth, getting a compiled Windows installer took the better part of two days. The agents driving this project have no linter and no way to compile the app themselves, so the build was handed to the one thing that could do it for us: **GitHub**. A CI / release workflow compiles the Tauri backend on a Windows runner, and GitHub Actions publishes the release with the installer attached. The agents wrote the code; the cloud compiled and shipped it.
+
 The experiment engine is deterministic and documented:
 
 - One run lasts **one hour** (3600 s).
