@@ -153,6 +153,7 @@ button#btn-stop { background: var(--cmd); color: #fff; border-color: var(--cmd);
   margin: 0;
   height: 100%;
   overflow: auto;
+  padding: 6px 8px;
   white-space: pre;
   font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
   font-size: 12px;
