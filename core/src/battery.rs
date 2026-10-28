@@ -230,13 +230,13 @@ mod tests {
     #[tokio::test]
     async fn countdown_delivers_all_21_pings_with_tiny_interval() {
         // Interval 0 s: no waiting between pings, so the test is instant.
-        let mut seen = Vec::new();
+        let seen = std::sync::Mutex::new(Vec::new());
         let completed = run_countdown_with(0, |lvl, seq| {
-            let seen = &mut seen;
-            let mut seen = seen;
+            let seen = &seen;
             async move {
-                assert_eq!(seq, seen.len());
-                seen.push(lvl);
+                let mut s = seen.lock().unwrap();
+                assert_eq!(seq, s.len());
+                s.push(lvl);
                 true
             }
         })
