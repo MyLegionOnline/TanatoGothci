@@ -13,3 +13,6 @@ node_modules/
 
 # Tauri generated schemas
 src-tauri/gen/
+
+# Standalone dev.to answer files (kept local, never committed)
+/devto_answer_*
