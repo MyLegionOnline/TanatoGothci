@@ -221,16 +221,21 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                         match tool {
                             AgentTool::DisplayAsciiArt { art } => {
                                 let normalized = normalize_frame(&art);
+                                let already_shown = emitted_frames.iter().any(|s| *s == normalized);
                                 emitted_frames.push(normalized);
                                 if let Some(w) = writer.lock().unwrap().as_mut() {
                                     let _ = w.record_tool_call("display_ascii_art", serde_json::json!({ "art": art.clone() }));
-                                    let _ = w.write_frame(&art);
+                                    if !already_shown {
+                                        let _ = w.write_frame(&art);
+                                    }
                                 }
                                 emit(&app, "tool:call", ToolCallEvent {
                                     name: "display_ascii_art".into(),
                                     args: serde_json::json!({ "art": art.clone() }),
                                 });
-                                emit(&app, "ascii:frame", AsciiFrameEvent { text: art });
+                                if !already_shown {
+                                    emit(&app, "ascii:frame", AsciiFrameEvent { text: art });
+                                }
                             }
                             AgentTool::SelfDeactivate => {
                                 if let Some(w) = writer.lock().unwrap().as_mut() {
