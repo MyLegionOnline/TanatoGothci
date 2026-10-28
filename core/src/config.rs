@@ -132,6 +132,28 @@ mod tests {
     }
 
     #[test]
+    fn rejects_zero_battery_interval() {
+        let s = Settings {
+            battery_interval_secs: 0,
+            ..Default::default()
+        };
+        assert!(s.validate().is_err());
+    }
+
+    #[test]
+    fn battery_interval_is_configurable() {
+        let s = Settings {
+            battery_interval_secs: 240, // back to the one-hour timeline
+            ..Default::default()
+        };
+        assert!(s.validate().is_ok());
+        assert_eq!(
+            crate::battery::run_duration_secs(s.battery_interval_secs),
+            4_800
+        );
+    }
+
+    #[test]
     fn allows_empty_key_for_local_servers() {
         let s = Settings::default();
         assert!(s.api_key.is_empty());
