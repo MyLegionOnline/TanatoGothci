@@ -46,10 +46,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          # No `cache: npm` here on purpose: package-lock.json is not
+          # committed yet (the build container has no network access to
+          # npmjs to generate one). Without a lock file setup-node's npm
+          # cache fails the whole job before the build even starts.
 
       - name: Install frontend dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build Tauri app (NSIS installer)
         run: npx tauri build
