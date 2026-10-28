@@ -44,6 +44,7 @@ async function main() {
     $("cfg-artifacts").value = cfg.artifacts_dir || "";
     $("cfg-reasoning").checked = !!cfg.reasoning_enabled;
     $("cfg-rlevel").value = cfg.reasoning_level || 3;
+    $("cfg-binterval").value = cfg.battery_interval_secs || 40;
   } catch (e) {
     console.error("get_config failed", e);
   }
