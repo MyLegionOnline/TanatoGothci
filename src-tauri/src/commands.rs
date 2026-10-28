@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 use tanato_core::api::ApiClient;
 use tanato_core::config::Settings;
+use tanato_core::geometry::AsciiGeometry;
 use tauri::{AppHandle, Manager, State};
 
 use crate::session;
