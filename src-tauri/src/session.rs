@@ -252,6 +252,11 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                         }
                     }
                     Ok(StreamDelta::Done) => {
+                        for frame in frame_scanner.finish() {
+                            emit_frame(
+                                &app, &writer, &mut emitted_frames, frame.text,
+                            );
+                        }
                         if let Some(w) = writer.lock().unwrap().as_mut() {
                             let _ = w.record_done("stop");
                         }
