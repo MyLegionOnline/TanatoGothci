@@ -71,6 +71,29 @@ pub fn set_logs_dir(
     Ok(())
 }
 
+/// The frontend measured the ASCII panel; store the limits so the next run
+/// injects them into the system prompt and the `display_ascii_art` contract.
+/// Zero / absurdly small measurements are ignored (they must never replace an
+/// already-known geometry). Returns the geometry actually in effect.
+#[tauri::command]
+pub fn set_ascii_geometry(
+    state: State<'_, AppState>,
+    cols: u32,
+    rows: u32,
+) -> Result<AsciiGeometry, String> {
+    let geo = AsciiGeometry { cols, rows };
+    if !geo.is_sane() {
+        // Log-and-ignore: keep whatever geometry we already had.
+        eprintln!(
+            "set_ascii_geometry: ignoring invalid measurement {}x{}",
+            geo.cols, geo.rows
+        );
+        return Ok(*state.ascii_geometry.lock().unwrap());
+    }
+    *state.ascii_geometry.lock().unwrap() = geo;
+    Ok(geo)
+}
+
 /// Ping the endpoint to make sure it acts like an OpenAI-compatible server.
 #[tauri::command]
 pub async fn validate_connection(state: State<'_, AppState>) -> Result<ValidationResult, String> {
