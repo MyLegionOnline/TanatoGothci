@@ -49,7 +49,7 @@ impl AsciiGeometry {
 /// characters, no wrapping, equal line widths.
 pub fn prompt_geometry_clause(geo: AsciiGeometry) -> String {
     format!(
-        "\n\nASCII PANEL GEOMETRY: the panel is exactly {cols} columns wide \
+        "\n\nASCII PANEL GEOMETRY: the panel is exactly {cols} columns width \
 and {rows} rows tall. Every ASCII art frame MUST fit strictly within \
 {cols} columns x {rows} rows. Use only monospace / box-drawing characters \
 (space, | - + / \\ _ = . : ; ' ` \" * # and similar). Never let the model \
