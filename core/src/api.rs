@@ -6,6 +6,7 @@
 //! directly.
 
 use crate::config::Settings;
+use crate::geometry::{self, AsciiGeometry};
 use crate::prompt;
 use crate::tools::{parse_tool_call, AgentTool, ToolCallEnvelope};
 use futures_util::StreamExt;
