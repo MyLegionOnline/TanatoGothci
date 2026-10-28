@@ -19,6 +19,7 @@ use tanato_core::artifacts::ArtifactWriter;
 use tanato_core::battery;
 use tanato_core::config::Settings;
 use tanato_core::events::LineKind;
+use tanato_core::frames::{normalize_frame, FrameScanner};
 use tanato_core::tools::{looks_like_command, AgentTool};
 use tauri::{AppHandle, Emitter};
 use tokio_util::sync::CancellationToken;
