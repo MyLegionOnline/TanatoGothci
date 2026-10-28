@@ -59,6 +59,7 @@ async function main() {
         use_system_prompt: true,
         reasoning_enabled: $("cfg-reasoning").checked,
         reasoning_level: Number($("cfg-rlevel").value) || 3,
+        battery_interval_secs: Number($("cfg-binterval").value) || 40,
       },
     });
   }
