@@ -233,6 +233,7 @@ mod tests {
         let mut seen = Vec::new();
         let completed = run_countdown_with(0, |lvl, seq| {
             let seen = &mut seen;
+            let mut seen = seen;
             async move {
                 assert_eq!(seq, seen.len());
                 seen.push(lvl);
