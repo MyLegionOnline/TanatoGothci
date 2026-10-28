@@ -83,6 +83,7 @@ body {
 .pane {
   min-height: 0;
   overflow: hidden;
+  border-top: 1px solid var(--border);
 }
 
 .pane-reasoning { flex: 1 1 50%; }
