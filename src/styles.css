@@ -68,6 +68,27 @@ body {
 
 .screen.active { display: block; }
 
+/* Live session layout: two stacked panes, each with a fixed share of the
+   viewport so incoming data never reflows/resizes the other pane
+   (no hardcoded pixel heights — they come from the flex layout). */
+#screen-session {
+  display: none;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+#screen-session.active { display: flex; }
+
+.pane {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pane-reasoning { flex: 1 1 50%; }
+
+.pane-ascii { flex: 1 1 50%; }
+
 label {
   display: block;
   margin-bottom: 6px;
