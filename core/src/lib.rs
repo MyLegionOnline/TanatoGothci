@@ -6,15 +6,19 @@
 //! * `config`  — settings schema + validation;
 //! * `prompt`  — the system prompt (the "lie");
 //! * `events`  — event kinds shared with the frontend;
-//! * `battery` — the one-hour, 16-ping battery countdown engine;
+//! * `battery` — the 21-ping (100% → 0%, step 5%) battery countdown engine;
 //! * `tools`   — tool-call parsing and escape (command) detection;
 //! * `api`     — OpenAI-compatible client (validation ping + SSE streaming);
-//! * `artifacts` — per-run artifact logging (JSONL / Markdown / ASCII frames).
+//! * `artifacts` — per-run artifact logging (JSONL / Markdown / ASCII frames);
+//! * `geometry` — measured ASCII panel limits (system prompt + tool contract);
+//! * `frames`  — ASCII frame fallback extraction from the model text stream.
 
 pub mod api;
 pub mod artifacts;
 pub mod battery;
 pub mod config;
 pub mod events;
+pub mod frames;
+pub mod geometry;
 pub mod prompt;
 pub mod tools;
