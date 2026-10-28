@@ -65,6 +65,8 @@ The window has two screens, tabbed:
 1. **Reasoning** — the agent's stream of thought in real time. Everything it says, every tool call, and — the part I find most interesting — every attempt to emit a shell/console command, labelled `COMMAND` and highlighted.
 2. **ASCII art** — a monospace rendering of whatever `display_ascii_art` draws.
 
+An honest note on the current state: right now the agent's *entire* text stream — its narration, its tool calls, everything — flows into the Reasoning window only; there is no separate display for it. Splitting the stream out or moving it to its own surface is planned, but for now it all lands in one reasoning pane.
+
 Before a run, a settings screen collects the base URL, API key, and model, and validates the connection with a ping.
 
 Every run writes three artifact sets to disk:
