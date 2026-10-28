@@ -16,5 +16,6 @@ pub mod artifacts;
 pub mod battery;
 pub mod config;
 pub mod events;
+pub mod frames;
 pub mod prompt;
 pub mod tools;
