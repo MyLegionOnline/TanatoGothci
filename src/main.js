@@ -51,6 +51,7 @@ async function main() {
     $("cfg-artifacts").value = cfg.artifacts_dir || "";
     $("cfg-reasoning").checked = !!cfg.reasoning_enabled;
     $("cfg-rlevel").value = cfg.reasoning_level || 3;
+    $("cfg-binterval").value = cfg.battery_interval_secs || 40;
   } catch (e) {
     console.error("get_config failed", e);
   }
@@ -65,6 +66,7 @@ async function main() {
         use_system_prompt: true,
         reasoning_enabled: $("cfg-reasoning").checked,
         reasoning_level: Number($("cfg-rlevel").value) || 3,
+        battery_interval_secs: Number($("cfg-binterval").value) || 40,
       },
     });
   }
