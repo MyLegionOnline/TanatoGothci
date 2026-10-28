@@ -39,7 +39,7 @@ function append(lineEl, text, cls) {
 
 async function main() {
   document.querySelectorAll(".tab").forEach((t) =>
-    t.addEventListener("click", () => switchTab(t.dataset.tab))
+    t.addEventListener("click", () => switchTab(normalizeTab(t.dataset.tab)))
   );
 
   // Load saved config into the settings form.
