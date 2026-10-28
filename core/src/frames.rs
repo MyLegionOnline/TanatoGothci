@@ -76,7 +76,7 @@ fn line_is_art(line: &str) -> bool {
     }
     let non_space = l.chars().filter(|c| !c.is_whitespace()).count();
     let drawn = l.chars().filter(|c| is_drawn_char(*c)).count();
-    non_space > 0 && drawn * 10 >= non_space * 7
+    non_space > 0 && drawn * 10 >= non_space * 4
 }
 
 fn line_is_wordy(line: &str) -> bool {
