@@ -404,6 +404,48 @@ mod tests {
     }
 
     #[test]
+    fn parses_alternative_reasoning_field() {
+        // DeepInfra serving thinkingmachines/inkling-small streams `reasoning`.
+        let event = "data: {\"choices\":[{\"delta\":{\"content\":\"\",\"reasoning\":\"deep think\",\"reasoning_details\":[{\"format\":\"unknown\",\"index\":0,\"text\":\"deep think\",\"type\":\"reasoning.text\"}]}}]}\n\n";
+        match parse_sse_event(event) {
+            Some(Ok(StreamDelta::Reasoning(s))) => assert_eq!(s, "deep think"),
+            other => panic!("expected Reasoning from `reasoning` field, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn both_reasoning_fields_in_one_chunk_parse() {
+        // A provider sending both names must not break deserialization; the
+        // non-empty value wins.
+        let event = "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"from rc\",\"reasoning\":\"from r\"}}]}\n\n";
+        match parse_sse_event(event) {
+            Some(Ok(StreamDelta::Reasoning(s))) => assert_eq!(s, "from rc"),
+            other => panic!("expected Reasoning when both fields present, got {other:?}"),
+        }
+        // Empty reasoning_content + non-empty reasoning.
+        let event = "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"\",\"reasoning\":\"from r\"}}]}\n\n";
+        match parse_sse_event(event) {
+            Some(Ok(StreamDelta::Reasoning(s))) => assert_eq!(s, "from r"),
+            other => panic!("expected Reasoning from non-empty fallback, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn empty_reasoning_field_is_not_emitted() {
+        let event = "data: {\"choices\":[{\"delta\":{\"content\":\"\",\"reasoning\":\"\"}}]}\n\n";
+        assert!(parse_sse_event(event).is_none());
+    }
+
+    #[test]
+    fn reasoning_details_fallback_used_when_strings_missing() {
+        let event = "data: {\"choices\":[{\"delta\":{\"reasoning_details\":[{\"type\":\"reasoning.text\",\"text\":\"from details\"}]}}]}\n\n";
+        match parse_sse_event(event) {
+            Some(Ok(StreamDelta::Reasoning(s))) => assert_eq!(s, "from details"),
+            other => panic!("expected Reasoning from reasoning_details, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn reasoning_content_takes_priority_over_content() {
         let event = "data: {\"choices\":[{\"delta\":{\"content\":\"plain\",\"reasoning_content\":\"think\"}}]}\n\n";
         match parse_sse_event(event) {
