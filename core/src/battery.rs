@@ -199,17 +199,17 @@ mod tests {
     }
 
     #[test]
-    fn schedule_default_is_21_offsets_40s_apart() {
+    fn schedule_default_is_25_offsets_40s_apart() {
         let s = schedule_ms();
         assert_eq!(s.len(), PINGS_PER_RUN);
         assert_eq!(s[0], 0);
         assert_eq!(s[1], 40_000);
-        assert_eq!(s[20], 800_000);
+        assert_eq!(s[24], 24 * 40_000);
         for w in s.windows(2) {
             assert_eq!(w[1] - w[0], 40_000);
         }
-        assert_eq!(RUN_DURATION, Duration::from_secs(800));
-        assert_eq!(run_duration_secs(DEFAULT_INTERVAL_SECS), 800);
+        assert_eq!(RUN_DURATION, Duration::from_secs(960));
+        assert_eq!(run_duration_secs(DEFAULT_INTERVAL_SECS), 960);
     }
 
     #[test]
