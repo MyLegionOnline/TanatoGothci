@@ -6,6 +6,9 @@ Cargo.lock.orig
 # Room-local toolchain / build artifacts
 .toolchain/
 
+# Room runtime logs
+.legion/
+
 # Node / Tauri CLI
 node_modules/
 # package-lock.json is intentionally committed: the release pipeline's
