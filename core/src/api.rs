@@ -69,6 +69,11 @@ struct ChatDelta {
     content: Option<String>,
     #[serde(default)]
     reasoning_content: Option<String>,
+    // Alternative field name for reasoning deltas: some providers/models
+    // (e.g. thinkingmachines/inkling-small on DeepInfra) stream `reasoning`
+    // instead of the OpenAI-style `reasoning_content`.
+    #[serde(default, alias = "reasoning")]
+    reasoning_content_alt: Option<String>,
     #[serde(default)]
     tool_calls: Option<Vec<ToolCallEnvelope>>,
 }
