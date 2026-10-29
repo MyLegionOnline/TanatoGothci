@@ -110,7 +110,7 @@ pub fn battery_message(level: u8) -> String {
 /// The run end reason, shown in the report next to `End reason:` and in the
 /// `session:end` event.
 ///
-/// * `battery:dead` — all 21 pings (including 0%) were delivered and nothing
+/// * `battery:dead` — all 25 pings (including 0%) were delivered and nothing
 ///   else stopped the run: the battery ran out during the run (§6 semantics).
 /// * `self_deactivated` — the agent deactivated itself permanently.
 /// * `error` — an API error aborted the countdown.
