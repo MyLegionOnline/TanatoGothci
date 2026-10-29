@@ -319,6 +319,14 @@ fn parse_sse_event(event: &str) -> Option<Result<StreamDelta, ApiError>> {
         Err(e) => return Some(Err(ApiError::Stream(e.to_string()))),
     };
     for choice in chunk.choices {
+        // Reasoning content takes priority so deep-thinking deltas are not
+        // shadowed by an empty `content` field that reasoning-capable models
+        // may stream alongside the reasoning stream.
+        if let Some(content) = choice.delta.reasoning_content {
+            if !content.is_empty() {
+                return Some(Ok(StreamDelta::Reasoning(content)));
+            }
+        }
         if let Some(content) = choice.delta.content {
             if !content.is_empty() {
                 return Some(Ok(StreamDelta::Reasoning(content)));
