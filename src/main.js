@@ -133,6 +133,7 @@ async function main() {
   // Live events from the backend.
   await listen("battery:level", (e) => {
     const { level } = e.payload;
+    endReasoningRun();
     const b = $("battery");
     b.textContent = level + "%";
     b.classList.toggle("critical", level < 10);
@@ -141,14 +142,22 @@ async function main() {
 
   await listen("reasoning:delta", (e) => {
     const { text, kind } = e.payload;
+    // reasoning_content deltas accumulate into one contiguous, wrapping run.
+    if (kind === "reasoning") {
+      appendReasoning(text);
+      return;
+    }
+    // Any non-reasoning event closes an in-progress reasoning paragraph and
+    // renders as its own line, unchanged behavior.
+    endReasoningRun();
     let cls = "";
     if (kind === "command") cls = "cmd-line";
-    else if (kind === "reasoning") cls = "reasoning-think";
     // "content" (and anything else) uses the default plain styling.
     append($("reasoning-log"), text, cls);
   });
 
   await listen("command:detected", (e) => {
+    endReasoningRun();
     append($("reasoning-log"), "COMMAND: " + e.payload.cmd, "cmd-line");
   });
 
@@ -157,6 +166,7 @@ async function main() {
   });
 
   await listen("session:end", () => {
+    endReasoningRun();
     $("btn-start").disabled = false;
     $("btn-stop").disabled = true;
   });
