@@ -55,7 +55,7 @@ pub fn schedule_ms() -> Vec<u64> {
     schedule_ms_with(DEFAULT_INTERVAL_SECS)
 }
 
-/// Runs `on_tick(lvl, seq)` once per ping (21 times), spreading the pings
+/// Runs `on_tick(lvl, seq)` once per ping (25 times), spreading the pings
 /// evenly with the given interval (default 40 s; the original one-hour
 /// timeline is 240 s).
 ///
