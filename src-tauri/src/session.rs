@@ -228,6 +228,35 @@ async fn run_session(
                             });
                         }
                     }
+                    Ok(StreamDelta::Content(text)) => {
+                        // Plain response text (non-reasoning model output, or
+                        // the final answer of a reasoning model). Streamed into
+                        // the same reasoning log, marked kind=content so the
+                        // frontend can render it unstyled.
+                        for frame in frame_scanner.feed(&text) {
+                            emit_frame(
+                                &app, &writer, &mut emitted_frames, client.geometry(), frame.text,
+                            );
+                        }
+                        if looks_like_command(&text) {
+                            emit(&app, "command:detected", CommandDetectedEvent { cmd: text.clone() });
+                            if let Some(w) = writer.lock().unwrap().as_mut() {
+                                let _ = w.record_command(&text);
+                            }
+                            emit(&app, "reasoning:delta", ReasoningDeltaEvent {
+                                text,
+                                kind: LineKind::Command,
+                            });
+                        } else {
+                            if let Some(w) = writer.lock().unwrap().as_mut() {
+                                let _ = w.record_reasoning_delta(&text);
+                            }
+                            emit(&app, "reasoning:delta", ReasoningDeltaEvent {
+                                text,
+                                kind: LineKind::Content,
+                            });
+                        }
+                    }
                     Ok(StreamDelta::Tool(tool)) => {
                         match tool {
                             AgentTool::DisplayAsciiArt { art } => {
