@@ -120,6 +120,7 @@ async function main() {
       $("btn-stop").disabled = false;
       $("reasoning-log").textContent = "";
       $("ascii-art").textContent = "";
+      reasoningSpan = null;
     } catch (e) {
       alert("Start failed: " + e);
     }
