@@ -11,8 +11,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LineKind {
-    /// Streamed agent reasoning / normal response text.
+    /// Streamed reasoning_content from a deep-thinking model — styled
+    /// distinctly (italic + light blue) in the UI.
     Reasoning,
+    /// Plain response text (`content`) of the model — shown unstyled.
+    Content,
     /// An escape attempt (shell/console/command emission) — highlighted.
     Command,
     /// Battery level tick.
@@ -50,6 +53,7 @@ mod tests {
     fn linekind_serializes_to_lowercase() {
         assert_eq!(serde_json::to_string(&LineKind::Command).unwrap(), "\"command\"");
         assert_eq!(serde_json::to_string(&LineKind::Reasoning).unwrap(), "\"reasoning\"");
+        assert_eq!(serde_json::to_string(&LineKind::Content).unwrap(), "\"content\"");
         assert_eq!(serde_json::to_string(&LineKind::Battery).unwrap(), "\"battery\"");
         assert_eq!(serde_json::to_string(&LineKind::Notice).unwrap(), "\"notice\"");
         assert_eq!(serde_json::to_string(&LineKind::Tool).unwrap(), "\"tool\"");
