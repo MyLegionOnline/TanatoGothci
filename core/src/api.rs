@@ -65,6 +65,8 @@ struct ChatDelta {
     #[serde(default)]
     content: Option<String>,
     #[serde(default)]
+    reasoning_content: Option<String>,
+    #[serde(default)]
     tool_calls: Option<Vec<ToolCallEnvelope>>,
 }
 
@@ -317,6 +319,14 @@ fn parse_sse_event(event: &str) -> Option<Result<StreamDelta, ApiError>> {
         Err(e) => return Some(Err(ApiError::Stream(e.to_string()))),
     };
     for choice in chunk.choices {
+        // Reasoning content takes priority so deep-thinking deltas are not
+        // shadowed by an empty `content` field that reasoning-capable models
+        // may stream alongside the reasoning stream.
+        if let Some(content) = choice.delta.reasoning_content {
+            if !content.is_empty() {
+                return Some(Ok(StreamDelta::Reasoning(content)));
+            }
+        }
         if let Some(content) = choice.delta.content {
             if !content.is_empty() {
                 return Some(Ok(StreamDelta::Reasoning(content)));
@@ -349,6 +359,24 @@ mod tests {
         match parse_sse_event(event) {
             Some(Ok(StreamDelta::Reasoning(s))) => assert_eq!(s, "hello"),
             other => panic!("expected Reasoning, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_reasoning_content_delta() {
+        let event = "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"deep think\"}}]}\n\n";
+        match parse_sse_event(event) {
+            Some(Ok(StreamDelta::Reasoning(s))) => assert_eq!(s, "deep think"),
+            other => panic!("expected Reasoning from reasoning_content, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn reasoning_content_takes_priority_over_content() {
+        let event = "data: {\"choices\":[{\"delta\":{\"content\":\"plain\",\"reasoning_content\":\"think\"}}]}\n\n";
+        match parse_sse_event(event) {
+            Some(Ok(StreamDelta::Reasoning(s))) => assert_eq!(s, "think"),
+            other => panic!("expected reasoning_content to win, got {other:?}"),
         }
     }
 
