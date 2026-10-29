@@ -65,6 +65,8 @@ struct ChatDelta {
     #[serde(default)]
     content: Option<String>,
     #[serde(default)]
+    reasoning_content: Option<String>,
+    #[serde(default)]
     tool_calls: Option<Vec<ToolCallEnvelope>>,
 }
 
