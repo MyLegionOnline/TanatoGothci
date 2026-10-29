@@ -360,8 +360,8 @@ mod tests {
     fn parses_reasoning_delta() {
         let event = "data: {\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}\n\n";
         match parse_sse_event(event) {
-            Some(Ok(StreamDelta::Reasoning(s))) => assert_eq!(s, "hello"),
-            other => panic!("expected Reasoning, got {other:?}"),
+            Some(Ok(StreamDelta::Content(s))) => assert_eq!(s, "hello"),
+            other => panic!("expected Content for plain text, got {other:?}"),
         }
     }
 
