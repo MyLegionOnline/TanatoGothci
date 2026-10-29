@@ -254,7 +254,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn countdown_delivers_all_21_pings_with_tiny_interval() {
+    async fn countdown_delivers_all_25_pings_with_tiny_interval() {
         // Interval 0 s: no waiting between pings, so the test is instant.
         let seen = std::sync::Mutex::new(Vec::new());
         let completed = run_countdown_with(0, |lvl, seq| {
