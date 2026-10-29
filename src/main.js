@@ -37,6 +37,32 @@ function append(lineEl, text, cls) {
   lineEl.scrollTop = lineEl.scrollHeight;
 }
 
+// Contiguous reasoning_content accumulation. The API streams reasoning in
+// many small per-token deltas; appending a trailing "\n" per delta made every
+// token its own line. Instead we keep ONE span and keep appending text to it
+// (its own whitespace/newlines still render via pre-wrap) so the reasoning
+// text flows as a wrapping paragraph. The run is closed with a single "\n"
+// only when a non-reasoning event arrives.
+let reasoningSpan = null;
+
+function appendReasoning(text) {
+  const log = $("reasoning-log");
+  if (!reasoningSpan) {
+    reasoningSpan = document.createElement("span");
+    reasoningSpan.className = "reasoning-think";
+    log.appendChild(reasoningSpan);
+  }
+  reasoningSpan.appendChild(document.createTextNode(text));
+  log.scrollTop = log.scrollHeight;
+}
+
+function endReasoningRun() {
+  if (reasoningSpan) {
+    $("reasoning-log").appendChild(document.createTextNode("\n"));
+    reasoningSpan = null;
+  }
+}
+
 async function main() {
   document.querySelectorAll(".tab").forEach((t) =>
     t.addEventListener("click", () => switchTab(normalizeTab(t.dataset.tab)))
