@@ -68,7 +68,7 @@ pub fn schedule_ms() -> Vec<u64> {
 /// delays the subsequent ping (but the countdown keeps the configured run
 /// duration as the timeline reference).
 ///
-/// Returns `true` if all 21 pings were delivered (including 0% → the battery
+/// Returns `true` if all 25 pings were delivered (including 0% → the battery
 /// is dead), `false` if `on_tick` asked to stop early.
 pub async fn run_countdown<F, Fut>(on_tick: F) -> bool
 where
