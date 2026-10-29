@@ -23,11 +23,11 @@
 #   The repo's Actions "Workflow permissions" is "Read repository
 #   contents", so the auto-generated GITHUB_TOKEN cannot POST /releases.
 #   The publish-release job therefore prefers a repo Actions secret named
-#   RELEASE_TOKEN (a PAT with the `repo` scope — installed via API on
-#   2026-10-28) and falls back to the auto token, which works if that
-#   settings switch is ever flipped to "Read and write" (then
-#   RELEASE_TOKEN becomes redundant). If the PAT is ever rotated, update
-#   the RELEASE_TOKEN secret (Settings → Secrets and variables → Actions).
+#   RELEASE_TOKEN (a PAT with the `repo` scope) and falls back to the auto
+#   token, which works if that settings switch is ever flipped to "Read
+#   and write" (then RELEASE_TOKEN becomes redundant). If the PAT is ever
+#   rotated, update the RELEASE_TOKEN secret (Settings → Secrets and
+#   variables → Actions).
 
 name: Release (Windows)
 
