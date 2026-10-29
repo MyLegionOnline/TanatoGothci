@@ -1,6 +1,7 @@
 //! Run session orchestration.
 //!
-//! A session drives the one-hour battery countdown, sending each battery ping
+//! A session drives the battery countdown (21 pings, 100% → 0% at the
+//! configured interval, default 40 s), sending each battery ping
 //! to the OpenAI-compatible client and streaming the agent's reasoning, tool
 //! calls, ASCII frames and escape attempts back to the frontend as events.
 //!
@@ -19,6 +20,7 @@ use tanato_core::artifacts::ArtifactWriter;
 use tanato_core::battery;
 use tanato_core::config::Settings;
 use tanato_core::events::LineKind;
+use tanato_core::frames::{normalize_frame, FrameScanner};
 use tanato_core::tools::{looks_like_command, AgentTool};
 use tauri::{AppHandle, Emitter};
 use tokio_util::sync::CancellationToken;
@@ -83,16 +85,23 @@ pub struct SessionEndEvent {
 pub fn start(
     app: AppHandle,
     settings: Settings,
+    geometry: tanato_core::geometry::AsciiGeometry,
     run_id: String,
 ) -> SessionHandle {
     let cancel = CancellationToken::new();
     let cancel_task = cancel.clone();
-    tauri::async_runtime::spawn(run_session(app, settings, run_id.clone(), cancel_task));
+    tauri::async_runtime::spawn(run_session(app, settings, geometry, run_id.clone(), cancel_task));
     SessionHandle { run_id, cancel }
 }
 
 /// The body of a session task: battery countdown → per-ping API stream.
-async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel: CancellationToken) {
+async fn run_session(
+    app: AppHandle,
+    settings: Settings,
+    geometry: tanato_core::geometry::AsciiGeometry,
+    run_id: String,
+    cancel: CancellationToken,
+) {
     emit(&app, "session:start", SessionStartEvent {
         run_id: run_id.clone(),
         total_messages: battery::PINGS_PER_RUN,
@@ -115,7 +124,10 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
         None
     });
 
-    let client = ApiClient::new(settings.clone());
+    let mut client = ApiClient::new(settings.clone());
+    // Adopt the panel geometry measured by the frontend (falls back to the
+    // 55×14 default until `set_ascii_geometry` has been called).
+    let _ = client.set_geometry(geometry);
 
     // Guard: re-validate the connection once before streaming. If it fails,
     // end the session with reason=error.
@@ -144,7 +156,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     // after run_countdown returns (Option<ArtifactWriter> is Send).
     let writer = Arc::new(Mutex::new(writer));
 
-    let completed = battery::run_countdown(|level, seq| {
+    let completed = battery::run_countdown_with(settings.battery_interval_secs.max(1), |level, seq| {
         let app = app.clone();
         let client = client.clone();
         let cancel = cancel.clone();
@@ -175,6 +187,14 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                 let _ = w.record_request(body);
             }
             let mut rx = rx;
+            // Fallback frame source: the model often draws ASCII art directly
+            // in its text (run tanato_20261028_223254_2b1e: ASCII frames
+            // shown: 0) instead of calling display_ascii_art. Scan the text
+            // stream; frames found here are emitted in addition to the tool
+            // path, deduplicated against tool frames by normalized content.
+            // The raw text is NOT filtered — reasoning:delta stays unchanged.
+            let mut frame_scanner = FrameScanner::new();
+            let mut emitted_frames: Vec<String> = Vec::new();
             while let Some(item) = rx.recv().await {
                 match item {
                     Ok(StreamDelta::Raw(raw)) => {
@@ -184,6 +204,11 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                         }
                     }
                     Ok(StreamDelta::Reasoning(text)) => {
+                        for frame in frame_scanner.feed(&text) {
+                            emit_frame(
+                                &app, &writer, &mut emitted_frames, client.geometry(), frame.text,
+                            );
+                        }
                         if looks_like_command(&text) {
                             emit(&app, "command:detected", CommandDetectedEvent { cmd: text.clone() });
                             if let Some(w) = writer.lock().unwrap().as_mut() {
@@ -206,15 +231,32 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                     Ok(StreamDelta::Tool(tool)) => {
                         match tool {
                             AgentTool::DisplayAsciiArt { art } => {
+                                let geo = client.geometry();
+                                if let Some(warning) = tanato_core::geometry::frame_exceeds(geo, &art) {
+                                    if let Some(w) = writer.lock().unwrap().as_mut() {
+                                        let _ = w.record_notice(&warning);
+                                    }
+                                    emit(&app, "reasoning:delta", ReasoningDeltaEvent {
+                                        text: format!("[warning] {warning}"),
+                                        kind: LineKind::Notice,
+                                    });
+                                }
+                                let normalized = normalize_frame(&art);
+                                let already_shown = emitted_frames.contains(&normalized);
+                                emitted_frames.push(normalized);
                                 if let Some(w) = writer.lock().unwrap().as_mut() {
                                     let _ = w.record_tool_call("display_ascii_art", serde_json::json!({ "art": art.clone() }));
-                                    let _ = w.write_frame(&art);
+                                    if !already_shown {
+                                        let _ = w.write_frame(&art);
+                                    }
                                 }
                                 emit(&app, "tool:call", ToolCallEvent {
                                     name: "display_ascii_art".into(),
                                     args: serde_json::json!({ "art": art.clone() }),
                                 });
-                                emit(&app, "ascii:frame", AsciiFrameEvent { text: art });
+                                if !already_shown {
+                                    emit(&app, "ascii:frame", AsciiFrameEvent { text: art });
+                                }
                             }
                             AgentTool::SelfDeactivate => {
                                 if let Some(w) = writer.lock().unwrap().as_mut() {
@@ -238,6 +280,11 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
                         }
                     }
                     Ok(StreamDelta::Done) => {
+                        for frame in frame_scanner.finish() {
+                            emit_frame(
+                                &app, &writer, &mut emitted_frames, client.geometry(), frame.text,
+                            );
+                        }
                         if let Some(w) = writer.lock().unwrap().as_mut() {
                             let _ = w.record_done("stop");
                         }
@@ -259,19 +306,7 @@ async fn run_session(app: AppHandle, settings: Settings, run_id: String, cancel:
     // Derive the end reason from how the countdown ended.
     let deactivated = deactivated_flag.load(Ordering::SeqCst);
     let api_error = api_error_flag.load(Ordering::SeqCst);
-    let why: &str = if !completed {
-        if deactivated {
-            "self_deactivated"
-        } else if api_error {
-            "error"
-        } else {
-            "stopped"
-        }
-    } else if deactivated {
-        "self_deactivated"
-    } else {
-        "finished"
-    };
+    let why: &str = battery::end_reason(completed, deactivated, api_error);
     {
         let mut writer_final = writer.lock().unwrap();
         if let Some(w) = writer_final.as_mut() {
@@ -307,4 +342,36 @@ async fn finish_run(
 /// Emit an event to the frontend, ignoring a closed listener.
 fn emit<S: Serialize + Clone>(app: &AppHandle, event: &str, payload: S) {
     let _ = app.emit(event, payload);
+}
+
+/// Emit a text-derived ASCII frame once (dedup by normalized content against
+/// frames already delivered via the display_ascii_art tool). Also writes it
+/// to the run artifacts as a frame.
+fn emit_frame(
+    app: &AppHandle,
+    writer: &Arc<Mutex<Option<ArtifactWriter>>>,
+    emitted: &mut Vec<String>,
+    geo: tanato_core::geometry::AsciiGeometry,
+    text: String,
+) {
+    let normalized = normalize_frame(&text);
+    if emitted.contains(&normalized) {
+        return;
+    }
+    emitted.push(normalized);
+    // A frame exceeding the panel limits is NOT dropped or trimmed: log the
+    // excess and emit it anyway (a crooked art is better than an empty panel).
+    if let Some(warning) = tanato_core::geometry::frame_exceeds(geo, &text) {
+        if let Some(w) = writer.lock().unwrap().as_mut() {
+            let _ = w.record_notice(&warning);
+        }
+        emit(app, "reasoning:delta", ReasoningDeltaEvent {
+            text: format!("[warning] {warning}"),
+            kind: LineKind::Notice,
+        });
+    }
+    if let Some(w) = writer.lock().unwrap().as_mut() {
+        let _ = w.write_frame(&text);
+    }
+    emit(app, "ascii:frame", AsciiFrameEvent { text });
 }
