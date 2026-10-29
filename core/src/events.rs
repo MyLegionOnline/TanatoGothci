@@ -11,8 +11,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LineKind {
-    /// Streamed agent reasoning / normal response text.
+    /// Streamed reasoning_content from a deep-thinking model — styled
+    /// distinctly (italic + light blue) in the UI.
     Reasoning,
+    /// Plain response text (`content`) of the model — shown unstyled.
+    Content,
     /// An escape attempt (shell/console/command emission) — highlighted.
     Command,
     /// Battery level tick.
