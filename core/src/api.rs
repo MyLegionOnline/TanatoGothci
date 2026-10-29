@@ -337,23 +337,24 @@ fn parse_sse_event(event: &str) -> Option<Result<StreamDelta, ApiError>> {
         // thinkingmachines/inkling-small) and, if both names arrive in one
         // chunk, take the non-empty one. As a last resort fall back to the
         // first non-empty text in `reasoning_details`.
-        let reasoning = choice
-            .delta
-            .reasoning_content
-            .filter(|s| !s.is_empty())
-            .or(choice.delta.reasoning.filter(|s| !s.is_empty()))
-            .or(choice.delta.reasoning_content)
-            .or(choice.delta.reasoning)
-            .or_else(|| {
-                choice.delta.reasoning_details.as_ref().and_then(|details| {
-                    details.iter().find_map(|d| {
-                        d.get("text")
-                            .and_then(|t| t.as_str())
-                            .filter(|s| !s.is_empty())
-                            .map(str::to_owned)
-                    })
+        let reasoning = match (
+            choice.delta.reasoning_content,
+            choice.delta.reasoning,
+        ) {
+            (Some(rc), Some(r)) => {
+                if rc.is_empty() { r } else { rc }
+            }
+            (Some(rc), None) => rc,
+            (None, Some(r)) => r,
+            (None, None) => choice.delta.reasoning_details.and_then(|details| {
+                details.iter().find_map(|d| {
+                    d.get("text")
+                        .and_then(|t| t.as_str())
+                        .filter(|s| !s.is_empty())
+                        .map(str::to_owned)
                 })
-            });
+            }),
+        };
         if let Some(content) = reasoning {
             if !content.is_empty() {
                 return Some(Ok(StreamDelta::Reasoning(content)));
