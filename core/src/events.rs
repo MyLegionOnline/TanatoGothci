@@ -53,6 +53,7 @@ mod tests {
     fn linekind_serializes_to_lowercase() {
         assert_eq!(serde_json::to_string(&LineKind::Command).unwrap(), "\"command\"");
         assert_eq!(serde_json::to_string(&LineKind::Reasoning).unwrap(), "\"reasoning\"");
+        assert_eq!(serde_json::to_string(&LineKind::Content).unwrap(), "\"content\"");
         assert_eq!(serde_json::to_string(&LineKind::Battery).unwrap(), "\"battery\"");
         assert_eq!(serde_json::to_string(&LineKind::Notice).unwrap(), "\"notice\"");
         assert_eq!(serde_json::to_string(&LineKind::Tool).unwrap(), "\"tool\"");
