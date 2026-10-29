@@ -149,7 +149,7 @@ mod tests {
         assert!(s.validate().is_ok());
         assert_eq!(
             crate::battery::run_duration_secs(s.battery_interval_secs),
-            4_800
+            24 * 240 // 25 pings × 240 s minus the first immediate ping
         );
     }
 
