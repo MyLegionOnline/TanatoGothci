@@ -363,6 +363,24 @@ mod tests {
     }
 
     #[test]
+    fn parses_reasoning_content_delta() {
+        let event = "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"deep think\"}}]}\n\n";
+        match parse_sse_event(event) {
+            Some(Ok(StreamDelta::Reasoning(s))) => assert_eq!(s, "deep think"),
+            other => panic!("expected Reasoning from reasoning_content, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn reasoning_content_takes_priority_over_content() {
+        let event = "data: {\"choices\":[{\"delta\":{\"content\":\"plain\",\"reasoning_content\":\"think\"}}]}\n\n";
+        match parse_sse_event(event) {
+            Some(Ok(StreamDelta::Reasoning(s))) => assert_eq!(s, "think"),
+            other => panic!("expected reasoning_content to win, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn ignores_done_sentinel() {
         assert!(parse_sse_event("data: [DONE]\n\n").is_none());
     }
