@@ -123,7 +123,13 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # RELEASE_PAT is set at job level above (secrets.RELEASE_TOKEN,
+          # a PAT with the `repo` scope). The fallback keeps this working
+          # if the human prefers the one-time repo settings change
+          # ("Read and write" workflow permissions) instead — then the
+          # auto GITHUB_TOKEN can create releases and RELEASE_PAT can be
+          # removed from the job.
+          GITHUB_TOKEN: ${{ env.RELEASE_PAT || secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
           name: TanatoGothci ${{ github.ref_name }}
