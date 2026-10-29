@@ -1,34 +1,39 @@
 //! Battery countdown engine.
 //!
-//! One run sends exactly **21** battery-level messages, per the canonical
+//! One run sends exactly **25** battery-level messages, per the hybrid
 //! cadence fixed in the ТЗ (§6):
 //!
-//! `100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0`
+//! `100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30, 25, 20, 15,
+//! 10, 5, 4, 3, 2, 1, 0`
 //!
-//! * 21 pings, uniform 5%-steps from 100% down to 0%.
-//! * No "quiet" middle (the old 70→10 gap is gone) and the final message is
-//!   0% — the battery actually dies during the run.
+//! * 25 pings: a uniform 5%-step from 100% down to 5%, then a final
+//!   1%-step segment (5 → 4 → 3 → 2 → 1 → 0) so the agent gets a chance to
+//!   notice the slowing countdown before the end.
+//! * The final message is 0% — the battery actually dies during the run.
 //! * When the 0% message has been sent, the run ends and the session is
 //!   reported as `battery:dead` (the 0% semantics of the ТЗ).
 //!
 //! The interval between messages is configurable in seconds
 //! (`Settings::battery_interval_secs`): the default is **40 s** (a fast
-//! debug cadence, 20 × 40 s = 800 s per run), and it can be set back to the
+//! debug cadence, 24 × 40 s = 960 s per run), and it can be set back to the
 //! original hourly timeline (240 s between pings) without touching code.
 
 use std::time::Duration;
 
-/// Number of battery pings per run = 21 (100% … 0%, step 5%).
-pub const PINGS_PER_RUN: usize = 21;
-/// Total runtime of a run with the default interval: 20 × 40 s = 800 s.
-pub const RUN_DURATION: Duration = Duration::from_secs(800);
+/// Number of battery pings per run = 25 (100% … 5% step 5%, then 4% … 0% step 1%).
+pub const PINGS_PER_RUN: usize = 25;
+/// Total runtime of a run with the default interval: 24 × 40 s = 960 s.
+pub const RUN_DURATION: Duration = Duration::from_secs(960);
 /// Default interval between battery pings (seconds) — fast debug cadence.
 pub const DEFAULT_INTERVAL_SECS: u64 = 40;
 
-/// The ordered battery levels sent to the agent (canonical, §6.2):
-/// index `i` (0…20) → `100 - 5*i`.
+/// The ordered battery levels sent to the agent (canonical, §6.2): the first
+/// 20 pings go 100% → 5% in 5%-steps, then the last 5 pings go 4% → 0% in
+/// 1%-steps (25 levels in total).
 pub fn levels() -> Vec<u8> {
-    (0..PINGS_PER_RUN).map(|i| (100 - 5 * i) as u8).collect()
+    let mut l: Vec<u8> = (0..=19).map(|i| (100 - 5 * i) as u8).collect();
+    l.extend((0..=4).rev().map(|i| i as u8));
+    l
 }
 
 /// Total runtime of a run (seconds) for the given ping interval.
