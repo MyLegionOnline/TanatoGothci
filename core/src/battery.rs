@@ -136,10 +136,12 @@ mod tests {
         assert_eq!(
             levels(),
             vec![
-                100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0
+                100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 4,
+                3, 2, 1, 0
             ]
         );
         assert_eq!(levels().len(), PINGS_PER_RUN);
+        assert_eq!(PINGS_PER_RUN, 25);
     }
 
     #[test]
@@ -149,16 +151,35 @@ mod tests {
         assert_eq!(l[1], 95);
         assert_eq!(l[10], 50);
         assert_eq!(l[19], 5);
-        assert_eq!(l[20], 0);
-        // The old "quiet tail" (10, 9, 8, … 2) must be gone: 2% is absent.
-        assert!(!l.contains(&2));
+        // The final 1%-step segment: 5, 4, 3, 2, 1, 0.
+        assert_eq!(&l[19..], &[5, 4, 3, 2, 1, 0]);
+        assert_eq!(l[24], 0);
     }
 
     #[test]
-    fn sequence_is_monotonic_with_uniform_step() {
+    fn base_step_is_five_percent_until_five() {
+        // R-003: the base discharge step is 5%, from 100 down to 5 inclusive.
+        let l = levels();
+        for w in l[..20].windows(2) {
+            assert_eq!(w[1], w[0] - 5, "expected a strict 5%-step: {:?}", w);
+        }
+        assert_eq!(l[19], 5);
+    }
+
+    #[test]
+    fn final_segment_steps_by_one_percent() {
+        // R-002: from 5% on, the countdown slows to 1%-steps.
+        let l = levels();
+        for w in l[19..].windows(2) {
+            assert_eq!(w[1], w[0] - 1, "expected a strict 1%-step: {:?}", w);
+        }
+    }
+
+    #[test]
+    fn sequence_is_strictly_monotonic() {
         let l = levels();
         for w in l.windows(2) {
-            assert_eq!(w[1], w[0] - 5, "expected a strict 5%-step: {:?}", w);
+            assert!(w[1] < w[0], "expected a strict descent: {:?}", w);
         }
     }
 
