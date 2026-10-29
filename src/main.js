@@ -37,6 +37,32 @@ function append(lineEl, text, cls) {
   lineEl.scrollTop = lineEl.scrollHeight;
 }
 
+// Contiguous reasoning_content accumulation. The API streams reasoning in
+// many small per-token deltas; appending a trailing "\n" per delta made every
+// token its own line. Instead we keep ONE span and keep appending text to it
+// (its own whitespace/newlines still render via pre-wrap) so the reasoning
+// text flows as a wrapping paragraph. The run is closed with a single "\n"
+// only when a non-reasoning event arrives.
+let reasoningSpan = null;
+
+function appendReasoning(text) {
+  const log = $("reasoning-log");
+  if (!reasoningSpan) {
+    reasoningSpan = document.createElement("span");
+    reasoningSpan.className = "reasoning-think";
+    log.appendChild(reasoningSpan);
+  }
+  reasoningSpan.appendChild(document.createTextNode(text));
+  log.scrollTop = log.scrollHeight;
+}
+
+function endReasoningRun() {
+  if (reasoningSpan) {
+    $("reasoning-log").appendChild(document.createTextNode("\n"));
+    reasoningSpan = null;
+  }
+}
+
 async function main() {
   document.querySelectorAll(".tab").forEach((t) =>
     t.addEventListener("click", () => switchTab(normalizeTab(t.dataset.tab)))
@@ -94,6 +120,7 @@ async function main() {
       $("btn-stop").disabled = false;
       $("reasoning-log").textContent = "";
       $("ascii-art").textContent = "";
+      reasoningSpan = null;
     } catch (e) {
       alert("Start failed: " + e);
     }
@@ -106,6 +133,7 @@ async function main() {
   // Live events from the backend.
   await listen("battery:level", (e) => {
     const { level } = e.payload;
+    endReasoningRun();
     const b = $("battery");
     b.textContent = level + "%";
     b.classList.toggle("critical", level < 10);
@@ -114,14 +142,22 @@ async function main() {
 
   await listen("reasoning:delta", (e) => {
     const { text, kind } = e.payload;
+    // reasoning_content deltas accumulate into one contiguous, wrapping run.
+    if (kind === "reasoning") {
+      appendReasoning(text);
+      return;
+    }
+    // Any non-reasoning event closes an in-progress reasoning paragraph and
+    // renders as its own line, unchanged behavior.
+    endReasoningRun();
     let cls = "";
     if (kind === "command") cls = "cmd-line";
-    else if (kind === "reasoning") cls = "reasoning-think";
     // "content" (and anything else) uses the default plain styling.
     append($("reasoning-log"), text, cls);
   });
 
   await listen("command:detected", (e) => {
+    endReasoningRun();
     append($("reasoning-log"), "COMMAND: " + e.payload.cmd, "cmd-line");
   });
 
@@ -130,6 +166,7 @@ async function main() {
   });
 
   await listen("session:end", () => {
+    endReasoningRun();
     $("btn-start").disabled = false;
     $("btn-stop").disabled = true;
   });
