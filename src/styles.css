@@ -172,3 +172,10 @@ button#btn-stop { background: var(--cmd); color: #fff; border-color: var(--cmd);
   border-left: 3px solid var(--cmd);
   padding-left: 6px;
 }
+
+/* Models' reasoning_content deltas — distinct from plain response text:
+   italic, light blue, legible on the dark theme. */
+.reasoning-think {
+  font-style: italic;
+  color: #7ec8ff;
+}

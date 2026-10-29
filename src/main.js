@@ -114,7 +114,11 @@ async function main() {
 
   await listen("reasoning:delta", (e) => {
     const { text, kind } = e.payload;
-    append($("reasoning-log"), text, kind === "command" ? "cmd-line" : "");
+    let cls = "";
+    if (kind === "command") cls = "cmd-line";
+    else if (kind === "reasoning") cls = "reasoning-think";
+    // "content" (and anything else) uses the default plain styling.
+    append($("reasoning-log"), text, cls);
   });
 
   await listen("command:detected", (e) => {
