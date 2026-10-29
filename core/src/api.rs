@@ -332,7 +332,7 @@ fn parse_sse_event(event: &str) -> Option<Result<StreamDelta, ApiError>> {
         }
         if let Some(content) = choice.delta.content {
             if !content.is_empty() {
-                return Some(Ok(StreamDelta::Reasoning(content)));
+                return Some(Ok(StreamDelta::Content(content)));
             }
         }
         if let Some(tool_calls) = choice.delta.tool_calls {
