@@ -29,10 +29,13 @@ pub enum ApiError {
 /// domain-independent events we stream to the frontend.
 #[derive(Debug, Clone)]
 pub enum StreamDelta {
-    /// A text fragment from the model — either reasoning content (deep-thinking
-    /// models) or the normal response text of a non-reasoning model. Both are
-    /// shown as the "reasoning log" (R-009).
+    /// A reasoning_content text fragment from a deep-thinking model (shown as
+    /// the "reasoning log", R-009, and styled distinctly in the UI).
     Reasoning(String),
+    /// A plain `content` text fragment from the model (the normal response
+    /// text of a non-reasoning model, or the text a reasoning model ultimately
+    /// answers with). Also streamed into the reasoning log.
+    Content(String),
     /// A tool call the agent wants to perform.
     Tool(AgentTool),
     /// The raw SSE payload received from the endpoint (full response, recorded
