@@ -225,11 +225,11 @@ mod tests {
         assert_eq!(s.len(), PINGS_PER_RUN);
         assert_eq!(s[0], 0);
         assert_eq!(s[1], 240_000);
-        assert_eq!(s[20], 20 * 240_000);
-        assert_eq!(run_duration_secs(240), 4_800);
+        assert_eq!(s[24], 24 * 240_000);
+        assert_eq!(run_duration_secs(240), 24 * 240);
         // Any other interval works the same way.
-        assert_eq!(schedule_ms_with(1)[20], 20_000);
-        assert_eq!(run_duration_secs(1), 20);
+        assert_eq!(schedule_ms_with(1)[24], 24_000);
+        assert_eq!(run_duration_secs(1), 24);
     }
 
     #[test]
