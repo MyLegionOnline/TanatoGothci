@@ -50,7 +50,7 @@ pub fn schedule_ms_with(interval_secs: u64) -> Vec<u64> {
 }
 
 /// Shorthand for `schedule_ms_with(DEFAULT_INTERVAL_SECS)` — the canonical
-/// debug-mode schedule (21 pings, 40 s apart, 0 ms at run start).
+/// debug-mode schedule (25 pings, 40 s apart, 0 ms at run start).
 pub fn schedule_ms() -> Vec<u64> {
     schedule_ms_with(DEFAULT_INTERVAL_SECS)
 }
