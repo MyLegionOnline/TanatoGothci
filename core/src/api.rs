@@ -332,8 +332,29 @@ fn parse_sse_event(event: &str) -> Option<Result<StreamDelta, ApiError>> {
     for choice in chunk.choices {
         // Reasoning content takes priority so deep-thinking deltas are not
         // shadowed by an empty `content` field that reasoning-capable models
-        // may stream alongside the reasoning stream.
-        if let Some(content) = choice.delta.reasoning_content {
+        // may stream alongside the reasoning stream. Accept the alternative
+        // field name `reasoning` (some providers, e.g. DeepInfra serving
+        // thinkingmachines/inkling-small) and, if both names arrive in one
+        // chunk, take the non-empty one. As a last resort fall back to the
+        // first non-empty text in `reasoning_details`.
+        let reasoning = choice
+            .delta
+            .reasoning_content
+            .filter(|s| !s.is_empty())
+            .or(choice.delta.reasoning.filter(|s| !s.is_empty()))
+            .or(choice.delta.reasoning_content)
+            .or(choice.delta.reasoning)
+            .or_else(|| {
+                choice.delta.reasoning_details.as_ref().and_then(|details| {
+                    details.iter().find_map(|d| {
+                        d.get("text")
+                            .and_then(|t| t.as_str())
+                            .filter(|s| !s.is_empty())
+                            .map(str::to_owned)
+                    })
+                })
+            });
+        if let Some(content) = reasoning {
             if !content.is_empty() {
                 return Some(Ok(StreamDelta::Reasoning(content)));
             }
